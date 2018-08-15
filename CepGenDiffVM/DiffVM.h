@@ -36,52 +36,76 @@ namespace CepGen {
 
     private:
       void generatePhoton(double x);
-      /// Compute the ougoing proton remnant mass
+      /// Compute the outgoing proton remnant mass
       /// \param[in] x A random number (between 0 and 1)
       /// \param[out] dw The size of the integration bin
       /// \return Mass of the outgoing proton remnant
       double outgoingPrimaryParticleMass(double x, double& y, bool treat) const;
+      /// Compute the single photon virtuality for this phase space point
+      /// \param[in] x Phase space point coordinate
+      /// \param[in] b
+      /// \return Photon virtuality, in \f${\rm GeV}^2\f$
       double computeT(double x, double b) const;
 
+      enum class BeamMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
+      BeamMode ifragp_, ifragv_;
+      /// Photon generation mode
+      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 };
+      /// Human-readable format of a photon generation mode
+      friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
+      PhotonMode igammd_;
       struct SlopeParameters {
         SlopeParameters() : b0(4.), wb0(95.), amxb0(14.), anexp(0.) {}
-        /// slope parameter b of t distribution in GeV^-2
-        /// * at CM energy wb0, and
-        /// * at mass amxb0 (for diffractive dissociation)
+        /// slope parameter b of t distribution in \f${\rm GeV}^{-2}\$f
+        /// * at CM energy \a wb0, and
+        /// * at mass \a amxb0 (for diffractive dissociation)
         /// \note Must be positive!
         double b0;
-        /// CM energy of gamma-p system at which b0 was measured, in GeV
+        /// CM energy of \f$\gamma p\f$ system at which \f$b_0\f$ was measured, in GeV
         double wb0;
-        /// Mass of diffractively dissociating hadronic system for which b0 was measured
+        /// Mass of diffractively dissociating hadronic system for which \f$b_0\f$ was measured
         double amxb0;
         /// Power law exponent
         double anexp;
-      } slp_;
+      };
+      SlopeParameters slp_;
       struct PomeronParameters {
         PomeronParameters() : epsilw(0.225), epsilm(0.0808), alpha1(0.), alpha1m(0.) {}
         /// Intercept of pomeron trajectory minus 1
-        /// \note Controls rise of sigma_gammap with W
+        /// \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
         double epsilw;
         /// Intercept of pomeron trajectory minus 1
-        /// \note Controls Mx spectrum
+        /// \note Controls \f$M_{X}\f$ spectrum
         double epsilm;
-        /// Slope alpha' of pomeron trajectory in GeV^-2
+        /// Slope alpha' of pomeron trajectory in \f${\rm GeV}^{-2}\f$
         /// \note Controls shrinkage of b slope
         double alpha1;
         double alpha1m;
-      } pom_;
-
-      /// Photon generation mode
-      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 };
-      PhotonMode igammd_;
-      enum class ProtonMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
-      ProtonMode ifragp_;
-      enum class VectorMode { Elastic = 0, StandardFragmentation = 1, VectorPionsDecay = 2 };
-      VectorMode ifragv_;
+      };
+      PomeronParameters pom_;
+      struct VectorMesonParameters {
+        VectorMesonParameters() : lambda(0.), eprop(2.5), xi(1.), chi(1.) {}
+        /// Parameter for Q2-dependence of cross section in GeV
+        /// \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
+        double lambda;
+        /// Propagator term exponent
+        double eprop;
+        /// Parameter for \f$Q^2\f$-dependence of \f$\sigma_L/\sigma_T\f$
+        /// \note
+        ///  * \f$\frac{\sigma_L(Q^2)}{\sigma_T(Q^2)}=\frac{\xi Q^2/m^2}{1+\xi\chi Q^2/m^2}\f$ where \f$\sigma_L/\sigma_T\to \xi Q^2/m^2\f$ for low-\f$Q^2\f$, and \f$\sigma_L/\sigma_T\to 1/\chi\f$ for high-\f$Q^2\f$ ;
+        ///  * \f$\xi\f$ is assumed to be less than 4 (more precisely, it is assumed that \f$\sigma_L(Q^2)\f$ is always less than \f$\sigma_T(0)\f$).
+        double xi;
+        /// Purely phenomenological parameter with no theoretical justification (see \a xi)
+        double chi;
+      };
+      VectorMesonParameters vm_;
 
       double bmin_;
-      Particle::Momentum p_vm_;
       double dmxv_, dmxp_;
+      double min_e_pho_, max_s_;
+      double prop_mx_;
+
+      Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_;
     };
   }  // namespace Process
 }  // namespace CepGen
