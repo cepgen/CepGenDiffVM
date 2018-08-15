@@ -6,7 +6,7 @@ from Integrators.vegas_cfi import vegas as integrator
 
 
 logger.enabledModules += (
-    'DiffVM',
+#    'DiffVM.*',
 )
 
 process = cepgen.Module('diffvm',
@@ -16,6 +16,7 @@ process = cepgen.Module('diffvm',
         structureFunctions = cepgen.StructureFunctions.LUXlike,
     ),
     outKinematics = cepgen.Parameters(
+        w = (20.,),
         pair = 13,
         pt = (25.,),
         energy = (0.,),

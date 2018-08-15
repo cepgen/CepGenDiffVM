@@ -29,19 +29,20 @@ namespace CepGen {
       ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
 
       void addEventContent() override;
+      void beforeComputeWeight() override;
       double computeWeight() override;
       unsigned int numDimensions(const Kinematics::Mode&) const override;
       void fillKinematics() override;
 
     private:
+      void generatePhoton(double x);
       /// Compute the ougoing proton remnant mass
       /// \param[in] x A random number (between 0 and 1)
       /// \param[out] dw The size of the integration bin
       /// \return Mass of the outgoing proton remnant
-      double computeOutgoingPrimaryParticlesMasses(double x, double& y);
+      double outgoingPrimaryParticleMass(double x, double& y, bool treat) const;
+      double computeT(double x, double b) const;
 
-      enum class ProtonMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
-      ProtonMode ifragp_;
       struct SlopeParameters {
         SlopeParameters() : b0(4.), wb0(95.), amxb0(14.), anexp(0.) {}
         /// slope parameter b of t distribution in GeV^-2
@@ -55,10 +56,9 @@ namespace CepGen {
         double amxb0;
         /// Power law exponent
         double anexp;
-      };
-      SlopeParameters slp_;
+      } slp_;
       struct PomeronParameters {
-        PomeronParameters() : epsilw(0.225), epsilm(0.0808), alpha1(0.) {}
+        PomeronParameters() : epsilw(0.225), epsilm(0.0808), alpha1(0.), alpha1m(0.) {}
         /// Intercept of pomeron trajectory minus 1
         /// \note Controls rise of sigma_gammap with W
         double epsilw;
@@ -68,8 +68,14 @@ namespace CepGen {
         /// Slope alpha' of pomeron trajectory in GeV^-2
         /// \note Controls shrinkage of b slope
         double alpha1;
-      };
-      PomeronParameters pom_;
+        double alpha1m;
+      } pom_;
+
+      /// Photon generation mode
+      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 };
+      PhotonMode igammd_;
+      enum class ProtonMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
+      ProtonMode ifragp_;
       enum class VectorMode { Elastic = 0, StandardFragmentation = 1, VectorPionsDecay = 2 };
       VectorMode ifragv_;
 
