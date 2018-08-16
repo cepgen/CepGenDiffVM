@@ -67,8 +67,7 @@ namespace CepGen {
         double amxb0;
         /// Power law exponent
         double anexp;
-      };
-      SlopeParameters slp_;
+      } slp_;
       struct PomeronParameters {
         PomeronParameters() : epsilw(0.225), epsilm(0.0808), alpha1(0.), alpha1m(0.) {}
         /// Intercept of pomeron trajectory minus 1
@@ -81,8 +80,7 @@ namespace CepGen {
         /// \note Controls shrinkage of b slope
         double alpha1;
         double alpha1m;
-      };
-      PomeronParameters pom_;
+      } pom_;
       struct VectorMesonParameters {
         VectorMesonParameters() : lambda(0.), eprop(2.5), xi(1.), chi(1.) {}
         /// Parameter for Q2-dependence of cross section in GeV
@@ -97,15 +95,15 @@ namespace CepGen {
         double xi;
         /// Purely phenomenological parameter with no theoretical justification (see \a xi)
         double chi;
-      };
-      VectorMesonParameters vm_;
+      } vm_;
 
       double bmin_;
       double dmxv_, dmxp_;
       double min_e_pho_, max_s_;
       double prop_mx_;
 
-      Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_;
+      Particle::Momentum p_gam_, p_gam_remn_;
+      Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
     };
   }  // namespace Process
 }  // namespace CepGen

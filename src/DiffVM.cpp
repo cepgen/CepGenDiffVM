@@ -38,6 +38,7 @@ namespace CepGen {
 
     void DiffVM::beforeComputeWeight() {
       const auto& w_limits = cuts_.cuts.central.mass_single;
+
       if (ifragp_ == BeamMode::Elastic) {
         if (!w_limits.hasMin())
           throw CG_FATAL("DiffVM") << "You must specify a lower limit to W(gamma,p)!\n\t"
@@ -51,6 +52,7 @@ namespace CepGen {
       }
       bmin_ = std::max(bmin_, 0.5);
       CG_DEBUG("DiffVM") << "Minimum b slope: " << bmin_ << ".";
+
       min_e_pho_ = 0.25 * pow(w_limits.min(), 2) / event_->getOneByRole(Particle::IncomingBeam2).momentum().p();
       max_s_ = pow(w_limits.max(), 2);
 
@@ -74,7 +76,9 @@ namespace CepGen {
     }
 
     double DiffVM::computeWeight() {
-      //===== GENGAM
+      //================================================================
+      // GENGAM
+      //================================================================
 
       generatePhoton(x(0));
 
@@ -83,8 +87,7 @@ namespace CepGen {
         return 0.;
 
       //--- determine actual CM energy
-      p_cm_ =
-          event_->getOneByRole(Particle::IncomingBeam2).momentum() + event_->getOneByRole(Particle::Parton1).momentum();
+      p_cm_ = p_gam_ + event_->getOneByRole(Particle::IncomingBeam2).momentum();
       w2_ = p_cm_.energy2();
       const double w = sqrt(w2_);
 
@@ -96,21 +99,24 @@ namespace CepGen {
       //      const double drlt = vm_.xi*q2/( pow( vm_.lambda, 2 )+vm_.xi*vm_.chi*q2 );
       weight *= pow(w2_ / max_s_, 2. * pom_.epsilw) / prop_mx_;
 
+      //================================================================
+      // GENMXT
+      //================================================================
+
+      double dum = 0.;
       switch (ifragp_) {
         case BeamMode::Elastic:
           break;
-        default: {
-          double dum = 0.;
+        default:
           dmxp_ = outgoingPrimaryParticleMass(x(3), dum, true);
-        } break;
+          break;
       }
       switch (ifragv_) {
         case BeamMode::Elastic:
           break;
-        default: {
-          double dum = 0.;
+        default:
           dmxv_ = outgoingPrimaryParticleMass(x(4), dum, false);
-        } break;
+          break;
       }
       if (dmxp_ <= 0. || dmxv_ <= 0.)
         return 0.;
@@ -160,24 +166,28 @@ namespace CepGen {
         yhat = 1.;
       }
 
-      //===== GENDIF
+      //================================================================
+      // GENDIF
+      // /!\ in the gamma-p centre of mass frame
+      //================================================================
 
       const double ctheta = 1. - 2. * yhat, stheta = 2. * sqrt(yhat - yhat * yhat);
 
       //--- calculate 5-vectors of diffractive states in the CMS
 
       // ivvm
-      const Particle::Momentum p_vm = event_->getOneByRole(Particle::Parton1).momentum();
-      const double p_gamf = p_out * ctheta / p_vm.p();
+      p_vm_cm_ = p_gam_;
+      p_vm_cm_.lorentzBoost(p_cm_);
+      const double p_gamf = p_out * ctheta / p_vm_cm_.p();
       const double phi = 2. * M_PI * x(2);
       const Particle::Momentum pt(
-          -cos(phi) * p_vm.pz(), sin(phi) * p_vm.pz(), cos(phi) * p_vm.px() - sin(phi) * p_vm.py());
-      const double ptf = p_out * stheta / std::hypot(p_vm.pz(), pt.pz());
+          -cos(phi) * p_vm_cm_.pz(), sin(phi) * p_vm_cm_.pz(), cos(phi) * p_vm_cm_.px() - sin(phi) * p_vm_cm_.py());
+      const double ptf = p_out * stheta / std::hypot(p_vm_cm_.pz(), pt.pz());
 
-      Particle::Momentum p_vmx_cm = p_gamf * p_vm + ptf * pt;
+      Particle::Momentum p_vmx_cm = p_gamf * p_vm_cm_ + ptf * pt;
       p_vmx_cm.setMass(dmxv_);
 
-      if (fabs(p_out * p_out - p_vmx_cm.p2()) > 0.01 * p_out * p_out)
+      if (sqrt(fabs(p_out * p_out - p_vmx_cm.p2())) > 0.1 * p_out)
         CG_WARNING("DiffVM:weight") << "p_out != |p_vmx_cm|\n\t"
                                     << "p_out: " << p_out << ", p_vmx_cm = " << p_vmx_cm << ".";
 
@@ -185,10 +195,11 @@ namespace CepGen {
       p_px_cm_.setMass(dmxp_);
 
       //--- calculate momentum carried by the pomeron
-      // the pomeron is thougt to be a quasireal particle emitted by the proton
-      // and absorbed by the virtual vector meson
+      // pomeron is thought to be a quasireal particle emitted by
+      // the proton and absorbed by the virtual vector meson
 
-      p_pom_cm_ = p_vmx_cm - p_vm;
+      std::cout << p_vmx_cm << std::endl;
+      p_pom_cm_ = p_vmx_cm - p_gam_;
 
       return weight;
     }
@@ -196,45 +207,52 @@ namespace CepGen {
     unsigned int DiffVM::numDimensions(const Kinematics::Mode&) const { return 5; }
 
     void DiffVM::fillKinematics() {
+      auto& gam = event_->getOneByRole(Particle::Parton1);
+      gam.setMomentum(p_gam_);
+
+      auto& op_gam = event_->getOneByRole(Particle::OutgoingBeam1);
+      op_gam.setMomentum(p_gam_remn_);
+
       auto& pom = event_->getOneByRole(Particle::Parton2);
       Particle::Momentum p_pom_lab = p_pom_cm_;
-      p_pom_lab.lorentzBoost(p_cm_);
+      p_pom_lab.lorentzBoost(-p_cm_);
       pom.setMomentum(p_pom_lab);
 
-      auto& op2 = event_->getOneByRole(Particle::OutgoingBeam2);
+      auto& op_pom = event_->getOneByRole(Particle::OutgoingBeam2);
       Particle::Momentum p_px_lab = p_px_cm_;
-      p_px_lab.lorentzBoost(p_cm_);
-      op2.setMomentum(p_px_lab);
+      p_px_lab.lorentzBoost(-p_cm_);
+      op_pom.setMomentum(p_px_lab);
+
+      auto& vmx = event_->getByRole(Particle::CentralSystem)[0];
+      Particle::Momentum p_vm_lab = p_vm_cm_;
+      p_vm_lab.lorentzBoost(-p_cm_);
+      vmx.setMomentum(p_vm_lab);
     }
 
     void DiffVM::generatePhoton(double x) {
       const Particle::Momentum p_ib = event_->getOneByRole(Particle::IncomingBeam1).momentum();
-      //const Particle::Momentum p_ib2 = event_->getOneByRole( Particle::IncomingBeam2 ).momentum();
-      Particle::Momentum p_pho, p_ob;
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
           const double e_gamma = 3.;  // in steering card
           const double y = e_gamma / p_ib.energy();
-          p_pho = y * p_ib;
-          p_pho.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
-          p_ob = p_ib - p_pho;
-          p_ob.setMass(p_ib.mass());
+          p_gam_ = y * p_ib;
+          p_gam_.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
+          p_gam_remn_ = p_ib - p_gam_;
+          p_gam_remn_.setMass(p_ib.mass());
         } break;
         case PhotonMode::InvK: {  // genphot
           const double e_max = p_ib.p();
           const double r = exp(x * log(min_e_pho_ / e_max));
           if (r >= 1.)
             CG_WARNING("DiffVM:photon") << "r=" << r << " > 1.";
-          p_pho = r * p_ib;
-          p_ob = p_ib - p_pho;
-          p_ob.setMass(p_ib.mass());
+          p_gam_ = r * p_ib;
+          p_gam_remn_ = p_ib - p_gam_;
+          p_gam_remn_.setMass(p_ib.mass());
         } break;
         default: {
           throw CG_FATAL("DiffVM:photon") << "Unsupported photon generation mode: " << igammd_ << "!";
         } break;
       }
-      event_->getOneByRole(Particle::Parton1).setMomentum(p_pho);
-      event_->getOneByRole(Particle::OutgoingBeam1).setMomentum(p_ob);
     }
 
     double DiffVM::outgoingPrimaryParticleMass(double x, double& y, bool treat) const {

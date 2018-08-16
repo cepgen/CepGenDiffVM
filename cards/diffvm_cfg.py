@@ -26,7 +26,7 @@ process = cepgen.Module('diffvm',
 )
 
 generator = _gen.clone(
-    numEvents = 100000,
-    printEvery = 10000,
+    numEvents = 10000,
+    printEvery = 2500,
 )
 
