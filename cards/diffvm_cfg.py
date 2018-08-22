@@ -12,7 +12,8 @@ logger.enabledModules += (
 process = cepgen.Module('diffvm',
     mode = cepgen.ProcessMode.ElasticElastic,
     inKinematics = cepgen.Parameters(
-        pz = (6500., 6500.),
+        pdgIds = (11, 2212),
+        pz = (27.55, 820.),
         structureFunctions = cepgen.StructureFunctions.LUXlike,
     ),
     outKinematics = cepgen.Parameters(
