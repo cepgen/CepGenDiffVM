@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include "CepGen/Core/Exception.h"
+#include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/PDG.h"
 #include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"
@@ -38,8 +39,12 @@ namespace CepGen {
           vm_width_(0.),
           prop_mx_(0.) {}
 
-    void DiffVM::beforeComputeWeight() {
-      MY_ = event_->getOneByRole(Particle::IncomingBeam2).mass();
+    void DiffVM::setKinematics(const Kinematics& kin) {
+      cuts_ = kin;
+      prepareKinematics();
+
+      const Particle& ip2 = event_->getOneByRole(Particle::IncomingBeam2);
+      MY_ = ip2.mass();
 
       const auto& w_limits = cuts_.cuts.central.mass_single;
 
@@ -57,7 +62,7 @@ namespace CepGen {
       bmin_ = std::max(bmin_, 0.5);
       CG_DEBUG("DiffVM") << "Minimum b slope: " << bmin_ << ".";
 
-      min_pho_energy_ = 0.25 * pow(w_limits.min(), 2) / event_->getOneByRole(Particle::IncomingBeam2).momentum().p();
+      min_pho_energy_ = 0.25 * pow(w_limits.min(), 2) / ip2.momentum().p();
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
@@ -85,7 +90,7 @@ namespace CepGen {
                                        {Particle::Parton2, {PDG::pomeron}},
                                        {Particle::OutgoingBeam1, {PDG::electron}},
                                        {Particle::OutgoingBeam2, {PDG::proton}},
-                                       {Particle::CentralSystem, {PDG::Upsilon1S}}});
+                                       {Particle::CentralSystem, {PDG::JPsi}}});
     }
 
     double DiffVM::computeWeight() {
@@ -117,6 +122,7 @@ namespace CepGen {
       //================================================================
 
       double dum = 0.;
+      //--- vector meson mass
       switch (ifragv_) {
         case BeamMode::Elastic:
           dmxv_ = vm_bw_->operator()(x(3));
@@ -125,6 +131,9 @@ namespace CepGen {
           dmxv_ = outgoingPrimaryParticleMass(x(3), dum, false);
           break;
       }
+      if (dmxv_ <= 0.)
+        return 0.;
+      //--- diffractive proton mass
       switch (ifragp_) {
         case BeamMode::Elastic:
           break;
@@ -132,10 +141,8 @@ namespace CepGen {
           MY_ = outgoingPrimaryParticleMass(x(4), dum, true);
           break;
       }
-      if (MY_ <= 0. || dmxv_ <= 0.)
+      if (MY_ <= 0.)
         return 0.;
-
-      std::cout << dmxv_ << std::endl;
 
       //--- return if generated masses are bigger than CM energy
       if (MY_ + dmxv_ > w - 0.1)
@@ -189,26 +196,26 @@ namespace CepGen {
 
       //--- calculate 5-vectors of diffractive states in the CMS
 
-      p_vm_cm_ = p_gam_;
-      p_vm_cm_.lorentzBoost(p_cm_);
+      Particle::Momentum p_vm_cm = p_gam_;
+      p_vm_cm.lorentzBoost(p_cm_);
 
       // ivvm
       const double ctheta = 1. - 2. * yhat, stheta = 2. * sqrt(yhat - yhat * yhat);
 
-      const double p_gamf = p_out * ctheta / p_vm_cm_.p();
+      const double p_gamf = p_out * ctheta / p_vm_cm.p();
       const double phi = 2. * M_PI * x(2);
       const Particle::Momentum pt(
-          -cos(phi) * p_vm_cm_.pz(), sin(phi) * p_vm_cm_.pz(), cos(phi) * p_vm_cm_.px() - sin(phi) * p_vm_cm_.py());
-      const double ptf = p_out * stheta / std::hypot(p_vm_cm_.pz(), pt.pz());
+          -cos(phi) * p_vm_cm.pz(), sin(phi) * p_vm_cm.pz(), cos(phi) * p_vm_cm.px() - sin(phi) * p_vm_cm.py());
+      const double ptf = p_out * stheta / std::hypot(p_vm_cm.pz(), pt.pz());
 
-      Particle::Momentum p_vmx_cm = p_gamf * p_vm_cm_ + ptf * pt;
-      p_vmx_cm.setMass(dmxv_);
+      p_vm_cm_ = p_gamf * p_vm_cm + ptf * pt;
+      p_vm_cm_.setMass(dmxv_);
 
-      if (sqrt(fabs(p_out * p_out - p_vmx_cm.p2())) > 0.1 * p_out)
-        CG_WARNING("DiffVM:weight") << "p_out != |p_vmx_cm|\n\t"
-                                    << "p_out: " << p_out << ", p_vmx_cm = " << p_vmx_cm << ".";
+      if (sqrt(fabs(p_out * p_out - p_vm_cm_.p2())) > 0.1 * p_out)
+        CG_WARNING("DiffVM:weight") << "p_out != |p_vm_cm|\n\t"
+                                    << "p_out: " << p_out << ", p_vm_cm = " << p_vm_cm_ << ".";
 
-      p_px_cm_ = -p_vmx_cm;
+      p_px_cm_ = -p_vm_cm_;
       p_px_cm_.setMass(MY_);
 
       //--- calculate momentum carried by the pomeron
@@ -216,7 +223,7 @@ namespace CepGen {
       // the proton and absorbed by the virtual vector meson
 
       //std::cout << p_vmx_cm << std::endl;
-      p_pom_cm_ = p_vmx_cm - p_gam_;
+      p_pom_cm_ = p_vm_cm_ - p_gam_;
 
       return weight;
     }

@@ -30,7 +30,7 @@ namespace CepGen {
       ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
 
       void addEventContent() override;
-      void beforeComputeWeight() override;
+      void setKinematics(const Kinematics&) override;
       double computeWeight() override;
       unsigned int numDimensions(const Kinematics::Mode&) const override;
       void fillKinematics() override;
