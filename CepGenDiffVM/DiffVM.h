@@ -22,6 +22,7 @@
 #include "CepGen/Processes/GenericProcess.h"
 
 namespace CepGen {
+  class BreitWigner;
   namespace Process {
     class DiffVM : public GenericProcess {
     public:
@@ -98,8 +99,10 @@ namespace CepGen {
       } vm_;
 
       double bmin_;
-      double dmxv_, dmxp_;
-      double min_e_pho_, max_s_;
+      double dmxv_;
+      double min_pho_energy_, max_s_;
+      double vm_mass_, vm_width_;
+      std::shared_ptr<BreitWigner> vm_bw_;
       double prop_mx_;
 
       Particle::Momentum p_gam_, p_gam_remn_;

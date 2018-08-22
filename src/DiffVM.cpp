@@ -20,6 +20,7 @@
 
 #include "CepGen/Core/Exception.h"
 #include "CepGen/Physics/PDG.h"
+#include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"
 
 namespace CepGen {
@@ -30,13 +31,16 @@ namespace CepGen {
           ifragv_(BeamMode::Elastic),
           igammd_(PhotonMode::InvK),
           bmin_(0.),
-          dmxv_(mp_),
-          dmxp_(mp_),
-          min_e_pho_(0.),
+          dmxv_(0.),
+          min_pho_energy_(0.),
           max_s_(0.),
+          vm_mass_(0.),
+          vm_width_(0.),
           prop_mx_(0.) {}
 
     void DiffVM::beforeComputeWeight() {
+      MY_ = event_->getOneByRole(Particle::IncomingBeam2).mass();
+
       const auto& w_limits = cuts_.cuts.central.mass_single;
 
       if (ifragp_ == BeamMode::Elastic) {
@@ -53,7 +57,7 @@ namespace CepGen {
       bmin_ = std::max(bmin_, 0.5);
       CG_DEBUG("DiffVM") << "Minimum b slope: " << bmin_ << ".";
 
-      min_e_pho_ = 0.25 * pow(w_limits.min(), 2) / event_->getOneByRole(Particle::IncomingBeam2).momentum().p();
+      min_pho_energy_ = 0.25 * pow(w_limits.min(), 2) / event_->getOneByRole(Particle::IncomingBeam2).momentum().p();
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
@@ -63,14 +67,23 @@ namespace CepGen {
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
+
+      const Particle& vm = event_->getByRole(Particle::CentralSystem)[0];
+      vm_mass_ = vm.mass(), vm_width_ = ParticleProperties::width(vm.pdgId());
+      double min_vm_mass = vm_mass_ - 3. * vm_width_, max_vm_mass = vm_mass_ + 10. * vm_width_;
+      if (vm.pdgId() == PDG::Rho1450_0 || vm.pdgId() == PDG::Rho1700_0)
+        min_vm_mass = std::max(min_vm_mass, 1.2);
+      else if (vm.pdgId() == PDG::h1380_1)
+        min_vm_mass = std::max(min_vm_mass, 1.4);
+      vm_bw_.reset(new BreitWigner(vm_mass_, vm_width_, min_vm_mass, max_vm_mass));
     }
 
     void DiffVM::addEventContent() {
-      GenericProcess::setEventContent({{Particle::IncomingBeam1, {PDG::proton}},
+      GenericProcess::setEventContent({{Particle::IncomingBeam1, {PDG::electron}},
                                        {Particle::IncomingBeam2, {PDG::proton}},
                                        {Particle::Parton1, {PDG::photon}},
                                        {Particle::Parton2, {PDG::pomeron}},
-                                       {Particle::OutgoingBeam1, {PDG::proton}},
+                                       {Particle::OutgoingBeam1, {PDG::electron}},
                                        {Particle::OutgoingBeam2, {PDG::proton}},
                                        {Particle::CentralSystem, {PDG::Upsilon1S}}});
     }
@@ -104,25 +117,28 @@ namespace CepGen {
       //================================================================
 
       double dum = 0.;
+      switch (ifragv_) {
+        case BeamMode::Elastic:
+          dmxv_ = vm_bw_->operator()(x(3));
+          break;
+        default:
+          dmxv_ = outgoingPrimaryParticleMass(x(3), dum, false);
+          break;
+      }
       switch (ifragp_) {
         case BeamMode::Elastic:
           break;
         default:
-          dmxp_ = outgoingPrimaryParticleMass(x(3), dum, true);
+          MY_ = outgoingPrimaryParticleMass(x(4), dum, true);
           break;
       }
-      switch (ifragv_) {
-        case BeamMode::Elastic:
-          break;
-        default:
-          dmxv_ = outgoingPrimaryParticleMass(x(4), dum, false);
-          break;
-      }
-      if (dmxp_ <= 0. || dmxv_ <= 0.)
+      if (MY_ <= 0. || dmxv_ <= 0.)
         return 0.;
 
+      std::cout << dmxv_ << std::endl;
+
       //--- return if generated masses are bigger than CM energy
-      if (dmxp_ + dmxv_ > w - 0.1)
+      if (MY_ + dmxv_ > w - 0.1)
         return 0.;
 
       //--- calculate slope parameter b
@@ -130,7 +146,7 @@ namespace CepGen {
 
       double b = slp_.b0 + 4. * pom_.alpha1 * log(w / slp_.wb0);
       if (ifragp_ != BeamMode::Elastic)
-        b -= 4. * pom_.alpha1m * log(dmxp_ / slp_.amxb0);
+        b -= 4. * pom_.alpha1m * log(MY_ / slp_.amxb0);
       if (ifragv_ != BeamMode::Elastic)
         b -= 4. * pom_.alpha1 * log(dmxv_ / slp_.amxb0);
       b = std::max(b, 0.5);
@@ -149,9 +165,9 @@ namespace CepGen {
 
       const double inv_w = 1. / w;
       const double pcm1 = 0.5 * sqrt(pow(w2_ + q2 - mp2_, 2) + 4. * q2 * mp2_) * inv_w;
-      const double p_out = 0.5 * sqrt((w2_ - pow(dmxv_ + dmxp_, 2)) * (w2_ - pow(dmxv_ - dmxp_, 2))) * inv_w;  // pcm3
-      const double t_mean = 0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - dmxp_ * dmxp_) * inv_w * inv_w + w2_ + q2 - mp2_ -
-                                   dmxv_ * dmxv_ - dmxp_ * dmxp_);
+      const double p_out = 0.5 * sqrt((w2_ - pow(dmxv_ + MY_, 2)) * (w2_ - pow(dmxv_ - MY_, 2))) * inv_w;  // pcm3
+      const double t_mean = 0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - MY_ * MY_) * inv_w * inv_w + w2_ + q2 - mp2_ -
+                                   dmxv_ * dmxv_ - MY_ * MY_);
       const double t_min = t_mean - 2. * pcm1 * p_out, t_max = t_mean + 2. * pcm1 * p_out;
       if (t < t_min || t > t_max)
         return 0.;
@@ -171,13 +187,14 @@ namespace CepGen {
       // /!\ in the gamma-p centre of mass frame
       //================================================================
 
-      const double ctheta = 1. - 2. * yhat, stheta = 2. * sqrt(yhat - yhat * yhat);
-
       //--- calculate 5-vectors of diffractive states in the CMS
 
-      // ivvm
       p_vm_cm_ = p_gam_;
       p_vm_cm_.lorentzBoost(p_cm_);
+
+      // ivvm
+      const double ctheta = 1. - 2. * yhat, stheta = 2. * sqrt(yhat - yhat * yhat);
+
       const double p_gamf = p_out * ctheta / p_vm_cm_.p();
       const double phi = 2. * M_PI * x(2);
       const Particle::Momentum pt(
@@ -192,13 +209,13 @@ namespace CepGen {
                                     << "p_out: " << p_out << ", p_vmx_cm = " << p_vmx_cm << ".";
 
       p_px_cm_ = -p_vmx_cm;
-      p_px_cm_.setMass(dmxp_);
+      p_px_cm_.setMass(MY_);
 
       //--- calculate momentum carried by the pomeron
       // pomeron is thought to be a quasireal particle emitted by
       // the proton and absorbed by the virtual vector meson
 
-      std::cout << p_vmx_cm << std::endl;
+      //std::cout << p_vmx_cm << std::endl;
       p_pom_cm_ = p_vmx_cm - p_gam_;
 
       return weight;
@@ -242,12 +259,13 @@ namespace CepGen {
         } break;
         case PhotonMode::InvK: {  // genphot
           const double e_max = p_ib.p();
-          const double r = exp(x * log(min_e_pho_ / e_max));
+          const double r = exp(x * log(min_pho_energy_ / e_max));
           if (r >= 1.)
             CG_WARNING("DiffVM:photon") << "r=" << r << " > 1.";
           p_gam_ = r * p_ib;
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
+          //          std::cout << min_pho_energy_ << "/" << e_max << "->" << p_ib.mass() << std::endl;
         } break;
         default: {
           throw CG_FATAL("DiffVM:photon") << "Unsupported photon generation mode: " << igammd_ << "!";
