@@ -90,11 +90,21 @@ namespace CepGen {
 
       const Particle& vm = event_->getByRole(Particle::CentralSystem)[0];
       vm_mass_ = vm.mass(), vm_width_ = ParticleProperties::width(vm.pdgId());
-      double min_vm_mass = vm_mass_ - 3. * vm_width_, max_vm_mass = vm_mass_ + 10. * vm_width_;
-      if (vm.pdgId() == PDG::Rho1450_0 || vm.pdgId() == PDG::Rho1700_0)
-        min_vm_mass = std::max(min_vm_mass, 1.2);
-      else if (vm.pdgId() == PDG::h1380_1)
-        min_vm_mass = std::max(min_vm_mass, 1.4);
+
+      //--- mass range for VM generation
+      double min_vm_mass = -1., max_vm_mass = -1.;
+      const auto& invm_limits = cuts_.cuts.central.mass_sum;
+      if (invm_limits.valid()) {
+        min_vm_mass = invm_limits.min();
+        max_vm_mass = invm_limits.max();
+      } else {
+        min_vm_mass = vm_mass_ - 3. * vm_width_;
+        max_vm_mass = vm_mass_ + 10. * vm_width_;
+        if (vm.pdgId() == PDG::Rho1450_0 || vm.pdgId() == PDG::Rho1700_0)
+          min_vm_mass = std::max(min_vm_mass, 1.2);
+        else if (vm.pdgId() == PDG::h1380_1)
+          min_vm_mass = std::max(min_vm_mass, 1.4);
+      }
       vm_bw_.reset(new BreitWigner(vm_mass_, vm_width_, min_vm_mass, max_vm_mass));
     }
 
@@ -263,6 +273,9 @@ namespace CepGen {
       p_px_lab.lorentzBoost(-p_cm_);
       op_pom.setMomentum(p_px_lab);
 
+      auto& gampom = event_->getOneByRole(Particle::Intermediate);
+      gampom.setMomentum(p_gam_ + p_px_lab);
+
       auto& vmx = event_->getByRole(Particle::CentralSystem)[0];
       Particle::Momentum p_vm_lab = p_vm_cm_;
       p_vm_lab.lorentzBoost(-p_cm_);
@@ -276,7 +289,7 @@ namespace CepGen {
           const double e_gamma = 3.;  // in steering card
           const double y = e_gamma / p_ib.energy();
           p_gam_ = y * p_ib;
-          p_gam_.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
+          //p_gam_.setMass( -sqrt( fabs( p_ib.mass2()*y*y/( 1.-y ) ) ) );
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
           return true;

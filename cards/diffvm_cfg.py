@@ -7,11 +7,13 @@ from Integrators.vegas_cfi import vegas as integrator
 
 logger.enabledModules += (
 #    'DiffVM.*',
+#    'EPA.*',
 )
 
 process = cepgen.Module('diffvm',
     mode = cepgen.ProcessMode.ElasticElastic,
     subProcess = 443, # J/psi
+    #subProcess = 23, # Z
     inKinematics = cepgen.Parameters(
         pdgIds = (11, 2212),
         pz = (27.55, 820.),
@@ -19,6 +21,7 @@ process = cepgen.Module('diffvm',
     ),
     outKinematics = cepgen.Parameters(
         w = (20.,),
+        #invmass = ( 0., 6. ),
         pair = 13,
         pt = (25.,),
         energy = (0.,),
@@ -28,7 +31,6 @@ process = cepgen.Module('diffvm',
 )
 
 generator = _gen.clone(
-    numEvents = 10000,
-    printEvery = 2500,
+    numEvents = 25000,
+    printEvery = 5000,
 )
-
