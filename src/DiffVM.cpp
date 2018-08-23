@@ -20,6 +20,7 @@
 
 #include "CepGen/Core/Exception.h"
 #include "CepGen/Physics/BreitWigner.h"
+#include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
 #include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"

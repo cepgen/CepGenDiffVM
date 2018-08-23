@@ -23,6 +23,7 @@
 
 namespace CepGen {
   class BreitWigner;
+  class EPA;
   namespace Process {
     class DiffVM : public GenericProcess {
     public:
