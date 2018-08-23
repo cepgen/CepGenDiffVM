@@ -33,7 +33,7 @@ namespace CepGen
       EPA( const Mode& mode = Mode::wwa ) :
         mode_( mode ), y_range_( { 0., 1. } ), dy_range_( { 0., 1. } ),
         s_( 0. ), w12_( 0. ), elpr_( 0. ), eel_( 0. ),
-        epa_max_( -1. ) {}
+        num_errors_( { { 0, 0, 0 } } ), epa_max_( -1. ) {}
       struct Result
       {
         Result() : valid( false ), q2( 0. ), heli( 0 ) {}
@@ -51,9 +51,15 @@ namespace CepGen
       };
 
       /// Initialize histograms, constants, kinematical bounds
-      void init( const Particle::Momentum& pel, const Particle::Momentum& ppr ) {
-        CG_INFO( "EPA:init" ) << "mode: " << mode_ << "\n\t"
-          << "beams momenta: " << pel_ << ", " << ppr_ << "\n\t"
+      void init( const Particle::Momentum& pel, const Particle::Momentum& ppr, const Limits& q2_range, const Limits& w_range ) {
+        pel_ = pel;
+        ppr_ = ppr;
+        q2_range_ = q2_range;
+        w_range_ = w_range;
+
+        CG_INFO( "EPA:init" ) << "EPA module initialised.\n\t"
+          << "mode: " << mode_ << "\n\t"
+          << "beams momenta:\n\t  " << pel_ << "\n\t  " << ppr_ << "\n\t"
           << "W range: " << w_range_ << "\n\t"
           << "Q² range: " << q2_range_;
 
@@ -86,32 +92,33 @@ namespace CepGen
           << "y range: " << y_range_ << "\n\t"
           << "(W(max)²-mp²+Q²(max))/(2*ELPR) = " << ( 0.5*( w_max*w_max-ppr_.mass2()+q2_max )/elpr_ ) << "\n\t"
           << "dy range: " << dy_range_ << ".";
+        const double dy_min = dy_range_.min(), dy_max = dy_range_.max();
 
         //--- set max. photon weight for efficient rejection plane
-        Limits qg2_range(
-          std::max( pel_.mass2()*pow( dy_range_.min(), 2 )/( 1.-dy_range_.min() ), q2_min ),
-          std::min( dy_range_.max()*s_, q2_max ) );
+        const double qg2_min = std::max( pel_.mass2()*pow( dy_min, 2 )/( 1.-dy_min ), q2_min );
+        const double qg2_max = std::min( dy_max*s_, q2_max );
+        Limits qg2_range( qg2_min, qg2_max );
         CG_DEBUG( "EPA:init" )
           << "QG2 range: " <<  qg2_range << ".";
 
         if ( mode_ == Mode::wwa ) //--- WWA - approximation
-          epa_max_ = ALPHARED * ( 4.*( 1.-dy_range_.min() ) + pow( dy_range_.min(), 2 ) );
+          epa_max_ = ALPHARED * ( 4.*( 1.-dy_min ) + pow( dy_min, 2 ) );
         else { //--- full transversal spectrum (2) or full longitudinal and transversal (3) spectrum
-          const double eqe = qg2_range.min()/eel_/eel_;
-          const double emqe2 = pow( dy_range_.min()-0.25*eqe, 2 );
-          const double emsqr = ( pow( dy_range_.min()*elpr_, 2 )+qg2_range.min()*ppr_.mass2() )/( elpr_*elpr_+pel_.mass2()*ppr_.mass2() );
+          const double eqe = qg2_min/eel_/eel_;
+          const double emqe2 = pow( dy_min-0.25*eqe, 2 );
+          const double emsqr = ( pow( dy_min*elpr_, 2 )+qg2_min*ppr_.mass2() )/( elpr_*elpr_+pel_.mass2()*ppr_.mass2() );
 
           if ( emsqr < 0. )
             CG_FATAL( "EPA:init" ) << "problem with sqrt(emsqr): "
               << emsqr << " at EPAMAX determination.";
 
-          epa_max_ = ALPHARED * dy_range_.min() * sqrt( emsqr ) / ( emqe2+eqe );
+          epa_max_ = ALPHARED * dy_min * sqrt( emsqr ) / ( emqe2+eqe );
           if ( mode_ == Mode::transverse )
-            epa_max_ *= ( 2.*( 1.-dy_range_.min() )+emqe2+eqe );
+            epa_max_ *= ( 2.*( 1.-dy_min )+emqe2+eqe );
           else
-            epa_max_ *= ( 4.*( 1.-dy_range_.min() )+emqe2+eqe );
+            epa_max_ *= ( 4.*( 1.-dy_min )+emqe2+eqe );
         }
-        epa_max_ *= log( dy_range_.max()/dy_range_.min() ) * log( qg2_range.max()/qg2_range.min() );
+        epa_max_ *= log( dy_max/dy_min ) * log( qg2_max/qg2_min );
 
         CG_DEBUG( "EPA:init" ) << "maximal EPA: " << epa_max_;
       }
@@ -140,12 +147,14 @@ namespace CepGen
         // begin main loop over Y,Q2 rnd prod.
         //--------------------------------------------------------------
 
+        const double dy_min = dy_range_.min(), dy_max = dy_range_.max();
+
         //--- produce Y spect. ( 1/y weighted shape )
-        const double y = dy_range_.min()*pow( dy_range_.max()/dy_range_.min(), x1 );
+        const double y = dy_min*pow( dy_max/dy_min, x1 );
         //--- calculate actual Q2_min, Q2_max from Y
-        const Limits gq2_range(
-          std::max( pel_.mass2()*y*y/( 1.-y ), q2_range_.min() ),
-          std::min( y*s_, q2_range_.max() ) );
+        const double gq2_min = std::max( pel_.mass2()*y*y/( 1.-y ), q2_range_.min() );
+        const double gq2_max = std::min( y*s_, q2_range_.max() );
+        const Limits gq2_range( gq2_min, gq2_max );
         //--- take Q2_cut from steering, if it is kinematicly reachable.
         if ( !gq2_range.valid() )
           return out;
@@ -156,7 +165,7 @@ namespace CepGen
         double epa = 0., epa_t = 0., epa_l = 0., lf = 0.;
 
         //--- produce Q2 spect. (1/x weighted shape )
-        const double q2 = gq2_range.min()*pow( gq2_range.max()/gq2_range.min(), x2 );
+        const double q2 = gq2_min*pow( gq2_max/gq2_min, x2 );
 
         //--------------------------------------------------------------
         // EPA - WWA spectrum
@@ -206,7 +215,7 @@ namespace CepGen
         lf = epa_l/epa;
 
         //--- unweight MC
-        double r = y*q2*log( dy_range_.max()/dy_range_.min() )*log( gq2_range.max()/gq2_range.min() );
+        double r = y*q2*log( dy_max/dy_min )*log( gq2_max/gq2_min );
         const double w = sqrt( y*2.*elpr_-q2+ppr_.mass2() );
         //--- check if W_min < W < W_max, else reject photon
         if ( !w_range_.passes( w ) )
@@ -248,19 +257,12 @@ namespace CepGen
         const double cthe = ( emy-exy )/eesc, sthe = 2.*sqrt( emy-exy )/eesc;
 
         //--- control scattering angle
-        if ( fabs( cthe ) > 1. ) {
-          CG_WARNING( "EPA:get" ) << "cos(theta) of electron: " << sthe << ", "
-            << "reject event for Y, Q2: " << y << ", " << q2 << ".";
-          if ( ++num_errors_[1] > 100 )
-            throw CG_FATAL( "EPA:get" ) << "too many problems for STHE!";
-          //--- new kinematics
-          return out;
-        }
-        if ( fabs( sthe ) > 1. ) {
-          CG_WARNING( "EPA:get" ) << "sin(theta) of electron: " << sthe << ", "
-            << "reject event for Y, Q2: " << y << ", " << q2 << ".";
-          if ( ++num_errors_[2] > 100 )
-            throw CG_FATAL( "EPA:get" ) << "too many problems for STHE!";
+        if ( fabs( cthe ) > 1. || fabs( sthe ) > 1. ) {
+          CG_DEBUG_LOOP( "EPA:get" ) << "theta of electron: "
+            << asin( sthe ) << "/" << acos( cthe ) << ", "
+            << "reject event for Y: " << y << ", Q2: " << q2 << ".";
+          if ( ++num_errors_[1] > 500 )
+            throw CG_FATAL( "EPA:get" ) << "too many problems for (S/C)THE!";
           //--- new kinematics
           return out;
         }

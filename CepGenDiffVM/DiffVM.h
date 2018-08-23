@@ -29,6 +29,7 @@ namespace CepGen {
     public:
       explicit DiffVM();
       ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
+      void setSubProcessId(unsigned short id);
 
       void addEventContent() override;
       void setKinematics(const Kinematics&) override;
@@ -37,9 +38,9 @@ namespace CepGen {
       void fillKinematics() override;
 
     private:
-      void generatePhoton(double x);
+      bool generatePhoton(const std::vector<double>& x);
       /// Compute the outgoing proton remnant mass
-      /// \param[in] x A random number (between 0 and 1)
+      /// \param[in] x A (collection of) random number(s) (between 0 and 1)
       /// \param[out] dw The size of the integration bin
       /// \return Mass of the outgoing proton remnant
       double outgoingPrimaryParticleMass(double x, double& y, bool treat) const;
@@ -49,13 +50,13 @@ namespace CepGen {
       /// \return Photon virtuality, in \f${\rm GeV}^2\f$
       double computeT(double x, double b) const;
 
+      PDG vm_pdgid_;
       enum class BeamMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
       BeamMode ifragp_, ifragv_;
       /// Photon generation mode
-      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 };
+      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 } igammd_;
       /// Human-readable format of a photon generation mode
       friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
-      PhotonMode igammd_;
       struct SlopeParameters {
         SlopeParameters() : b0(4.), wb0(95.), amxb0(14.), anexp(0.) {}
         /// slope parameter b of t distribution in \f${\rm GeV}^{-2}\$f
@@ -104,7 +105,9 @@ namespace CepGen {
       double min_pho_energy_, max_s_;
       double vm_mass_, vm_width_;
       std::shared_ptr<BreitWigner> vm_bw_;
+      std::shared_ptr<EPA> epa_calc_;
       double prop_mx_;
+      unsigned short ndim_;
 
       Particle::Momentum p_gam_, p_gam_remn_;
       Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;

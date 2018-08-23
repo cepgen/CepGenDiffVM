@@ -16,6 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <math.h>
 
 #include "CepGen/Core/Exception.h"
@@ -29,9 +30,10 @@ namespace CepGen {
   namespace Process {
     DiffVM::DiffVM()
         : GenericProcess("diffvm", "Diffractive vector meson production"),
+          vm_pdgid_(PDG::JPsi),
           ifragp_(BeamMode::Elastic),
           ifragv_(BeamMode::Elastic),
-          igammd_(PhotonMode::InvK),
+          igammd_(PhotonMode::WWA),
           bmin_(0.),
           dmxv_(0.),
           min_pho_energy_(0.),
@@ -40,14 +42,24 @@ namespace CepGen {
           vm_width_(0.),
           prop_mx_(0.) {}
 
+    void DiffVM::setSubProcessId(unsigned short id) { vm_pdgid_ = (PDG)id; }
+
     void DiffVM::setKinematics(const Kinematics& kin) {
       cuts_ = kin;
       prepareKinematics();
 
-      const Particle& ip2 = event_->getOneByRole(Particle::IncomingBeam2);
+      const Particle &ip1 = event_->getOneByRole(Particle::IncomingBeam1),
+                     &ip2 = event_->getOneByRole(Particle::IncomingBeam2);
       MY_ = ip2.mass();
 
       const auto& w_limits = cuts_.cuts.central.mass_single;
+      const auto& q2_limits = cuts_.cuts.initial.q2;
+
+      if (igammd_ >= PhotonMode::WWA) {
+        epa_calc_.reset(new EPA(EPA::Mode::wwa));
+        epa_calc_->init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
+        ndim_++;
+      }
 
       if (ifragp_ == BeamMode::Elastic) {
         if (!w_limits.hasMin())
@@ -57,8 +69,10 @@ namespace CepGen {
       } else {
         if (ifragv_ == BeamMode::Elastic)
           bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(slp_.amxb0 / slp_.wb0);
-        else
+        else {
           bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(4. * pow(slp_.amxb0, 2) / (slp_.wb0 * sqs_));
+          ndim_++;
+        }
       }
       bmin_ = std::max(bmin_, 0.5);
       CG_DEBUG("DiffVM") << "Minimum b slope: " << bmin_ << ".";
@@ -69,7 +83,7 @@ namespace CepGen {
       if (vm_.lambda <= 0.)
         vm_.lambda = event_->getByRole(Particle::CentralSystem)[0].mass();
 
-      const double q2_min = cuts_.cuts.initial.q2.min();
+      const double q2_min = q2_limits.min();
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
@@ -91,7 +105,7 @@ namespace CepGen {
                                        {Particle::Parton2, {PDG::pomeron}},
                                        {Particle::OutgoingBeam1, {PDG::electron}},
                                        {Particle::OutgoingBeam2, {PDG::proton}},
-                                       {Particle::CentralSystem, {PDG::JPsi}}});
+                                       {Particle::CentralSystem, {vm_pdgid_}}});
     }
 
     double DiffVM::computeWeight() {
@@ -99,7 +113,8 @@ namespace CepGen {
       // GENGAM
       //================================================================
 
-      generatePhoton(x(0));
+      if (!generatePhoton({x(0), x(4)}))
+        return 0.;
 
       const double q2 = event_->getOneByRole(Particle::Parton1).momentum().mass2();
       if (!cuts_.cuts.initial.q2.passes(q2))
@@ -139,7 +154,7 @@ namespace CepGen {
         case BeamMode::Elastic:
           break;
         default:
-          MY_ = outgoingPrimaryParticleMass(x(4), dum, true);
+          MY_ = outgoingPrimaryParticleMass(x(5), dum, true);
           break;
       }
       if (MY_ <= 0.)
@@ -229,7 +244,7 @@ namespace CepGen {
       return weight;
     }
 
-    unsigned int DiffVM::numDimensions(const Kinematics::Mode&) const { return 5; }
+    unsigned int DiffVM::numDimensions(const Kinematics::Mode&) const { return ndim_; }
 
     void DiffVM::fillKinematics() {
       auto& gam = event_->getOneByRole(Particle::Parton1);
@@ -254,7 +269,7 @@ namespace CepGen {
       vmx.setMomentum(p_vm_lab);
     }
 
-    void DiffVM::generatePhoton(double x) {
+    bool DiffVM::generatePhoton(const std::vector<double>& x) {
       const Particle::Momentum p_ib = event_->getOneByRole(Particle::IncomingBeam1).momentum();
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
@@ -264,21 +279,34 @@ namespace CepGen {
           p_gam_.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
+          return true;
         } break;
         case PhotonMode::InvK: {  // genphot
+          assert(x.size() > 0);
           const double e_max = p_ib.p();
-          const double r = exp(x * log(min_pho_energy_ / e_max));
+          const double r = exp(x[0] * log(min_pho_energy_ / e_max));
           if (r >= 1.)
             CG_WARNING("DiffVM:photon") << "r=" << r << " > 1.";
           p_gam_ = r * p_ib;
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
           //          std::cout << min_pho_energy_ << "/" << e_max << "->" << p_ib.mass() << std::endl;
+          return true;
+        } break;
+        case PhotonMode::WWA:
+        case PhotonMode::ABTSmith:
+        case PhotonMode::AandS: {
+          assert(x.size() > 1);
+          const auto& res = epa_calc_->operator()(x[0], x[1]);
+          p_gam_ = res.pph;
+          p_gam_remn_ = res.ppe;
+          return res.valid;
         } break;
         default: {
           throw CG_FATAL("DiffVM:photon") << "Unsupported photon generation mode: " << igammd_ << "!";
         } break;
       }
+      return false;
     }
 
     double DiffVM::outgoingPrimaryParticleMass(double x, double& y, bool treat) const {

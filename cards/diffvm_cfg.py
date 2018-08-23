@@ -11,6 +11,7 @@ logger.enabledModules += (
 
 process = cepgen.Module('diffvm',
     mode = cepgen.ProcessMode.ElasticElastic,
+    subProcess = 443, # J/psi
     inKinematics = cepgen.Parameters(
         pdgIds = (11, 2212),
         pz = (27.55, 820.),
