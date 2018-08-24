@@ -27,9 +27,8 @@ namespace CepGen {
   namespace Process {
     class DiffVM : public GenericProcess {
     public:
-      explicit DiffVM();
+      explicit DiffVM(const ParametersList&);
       ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
-      void setSubProcessId(unsigned short id);
 
       void addEventContent() override;
       void setKinematics(const Kinematics&) override;
@@ -51,14 +50,19 @@ namespace CepGen {
       double computeT(double x, double b) const;
 
       PDG vm_pdgid_;
-      enum class BeamMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
-      BeamMode ifragp_, ifragv_;
+      enum class BeamMode {
+        Elastic = 0,
+        GluonFragmentation = -1,
+        StandardFragmentation = 1,
+        NucleonPionsDecay = 2
+      } ifragp_,
+          ifragv_;
       /// Photon generation mode
       enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 } igammd_;
       /// Human-readable format of a photon generation mode
       friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
       struct SlopeParameters {
-        SlopeParameters() : b0(4.), wb0(95.), amxb0(14.), anexp(0.) {}
+        SlopeParameters(const ParametersList& params = ParametersList());
         /// slope parameter b of t distribution in \f${\rm GeV}^{-2}\$f
         /// * at CM energy \a wb0, and
         /// * at mass \a amxb0 (for diffractive dissociation)
@@ -72,7 +76,7 @@ namespace CepGen {
         double anexp;
       } slp_;
       struct PomeronParameters {
-        PomeronParameters() : epsilw(0.225), epsilm(0.0808), alpha1(0.), alpha1m(0.) {}
+        PomeronParameters(const ParametersList& params = ParametersList());
         /// Intercept of pomeron trajectory minus 1
         /// \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
         double epsilw;
@@ -85,7 +89,7 @@ namespace CepGen {
         double alpha1m;
       } pom_;
       struct VectorMesonParameters {
-        VectorMesonParameters() : lambda(0.), eprop(2.5), xi(1.), chi(1.) {}
+        VectorMesonParameters(const ParametersList& params = ParametersList());
         /// Parameter for Q2-dependence of cross section in GeV
         /// \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
         double lambda;

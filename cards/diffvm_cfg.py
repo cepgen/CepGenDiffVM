@@ -10,22 +10,20 @@ logger.enabledModules += (
 #    'EPA.*',
 )
 
+import Config.DiffVM_cff as diffvm
+
 process = cepgen.Module('diffvm',
-    mode = cepgen.ProcessMode.ElasticElastic,
-    subProcess = 443, # J/psi
-    #subProcess = 23, # Z
+    processParameters = diffvm.defaultProcessParameters.clone(
+        #vmFlavour = 23, # Z
+        #protonMode = diffvm.BeamMode.StandardFragmentation,
+    ),
     inKinematics = cepgen.Parameters(
         pdgIds = (11, 2212),
         pz = (27.55, 820.),
-        structureFunctions = cepgen.StructureFunctions.LUXlike,
     ),
     outKinematics = cepgen.Parameters(
         w = (20.,),
         #invmass = ( 0., 6. ),
-        pair = 13,
-        pt = (25.,),
-        energy = (0.,),
-        eta = (-2.5, 2.5),
         mx = (1.07, 1000.),
     ),
 )

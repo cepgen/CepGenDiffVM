@@ -30,19 +30,39 @@ namespace CepGen {
   namespace Process {
     DiffVM::DiffVM()
         : GenericProcess("diffvm", "Diffractive vector meson production"),
-          vm_pdgid_(PDG::JPsi),
-          ifragp_(BeamMode::Elastic),
-          ifragv_(BeamMode::Elastic),
-          igammd_(PhotonMode::WWA),
+          vm_pdgid_((PDG)params.get<int>("vmFlavour", (int)PDG::JPsi)),
+          ifragp_((BeamMode)params.get<int>("protonMode", (int)BeamMode::Elastic)),
+          ifragv_((BeamMode)params.get<int>("vmMode", (int)BeamMode::Elastic)),
+          igammd_((PhotonMode)params.get<int>("photonMode", (int)PhotonMode::WWA)),
+          slp_(params.get<ParametersList>("slopeParameters")),
+          pom_(params.get<ParametersList>("pomeronParameters")),
+          vm_(params.get<ParametersList>("vmParameters")),
           bmin_(0.),
           dmxv_(0.),
           min_pho_energy_(0.),
           max_s_(0.),
           vm_mass_(0.),
           vm_width_(0.),
-          prop_mx_(0.) {}
+          prop_mx_(0.),
+          ndim_(4) {}
 
-    void DiffVM::setSubProcessId(unsigned short id) { vm_pdgid_ = (PDG)id; }
+    DiffVM::SlopeParameters::SlopeParameters(const ParametersList& params)
+        : b0(params.get<double>("b0", 4.)),
+          wb0(params.get<double>("wb0", 95.)),
+          amxb0(params.get<double>("amxb0", 14.)),
+          anexp(params.get<double>("anexp", 0.)) {}
+
+    DiffVM::PomeronParameters::PomeronParameters(const ParametersList& params)
+        : epsilw(params.get<double>("epsilonW", 0.225)),
+          epsilm(params.get<double>("epsilonM", 0.0808)),
+          alpha1(params.get<double>("alpha1", 0.)),
+          alpha1m(params.get<double>("alpha1m", 0.)) {}
+
+    DiffVM::VectorMesonParameters::VectorMesonParameters(const ParametersList& params)
+        : lambda(params.get<double>("lambda", 0.)),
+          eprop(params.get<double>("eprop", 2.5)),
+          xi(params.get<double>("xi", 1.)),
+          chi(params.get<double>("chi", 1.)) {}
 
     void DiffVM::setKinematics(const Kinematics& kin) {
       cuts_ = kin;
