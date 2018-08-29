@@ -20,6 +20,7 @@
 #define CepGenProcesses_DiffVM_h
 
 #include "CepGen/Processes/GenericProcess.h"
+#include "CepGen/Core/ParametersList.h"
 
 namespace CepGen {
   class BreitWigner;

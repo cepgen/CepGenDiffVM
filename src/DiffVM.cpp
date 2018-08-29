@@ -20,6 +20,7 @@
 #include <math.h>
 
 #include "CepGen/Core/Exception.h"
+#include "CepGen/Event/Event.h"
 #include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
