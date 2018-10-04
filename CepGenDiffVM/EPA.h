@@ -6,7 +6,8 @@
 #include "CepGen/Physics/Momentum.h"
 #include "CepGen/Utils/Limits.h"
 
-namespace CepGen {
+namespace cepgen {
+  /// \brief An Equivalent Photon Approximation calculator
   /// \author Benno List
   /// \author Thomas Jansen
   /// \date 1993-1995
@@ -21,7 +22,9 @@ namespace CepGen {
     };
     friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
 
+    /// Default constructor
     EPA(const Mode& mode = Mode::wwa);
+    /// Output format for a given approximation
     struct Result {
       Result() : valid(false), q2(0.), heli(0) {}
       bool valid;
@@ -42,16 +45,13 @@ namespace CepGen {
 
     /// generate one event with unweighted photon and electron
     /** \note
-       * 1) according to WWA:
+       * 1. according to WWA:
        *    - transversal photonspectrum (\f$Q^2 \to 0\f$):
        *      \f$ P(y, Q^2) = \frac{\alpha}{2\pi}\frac{1}{Q^2 y}\left(2(1-y)\left(1-\frac{Q^2_{\rm min}}{Q^2}\right)+y^2\right),\f$
        *    - longitudinal photonspectrum (\f$Q^2 \to 0\f$):
        *      \f$ P(y, Q^2) = \frac{\alpha}{2\pi}\frac{1}{Q^2 y}2(1-y).\f$
-       * 2) full transversal photonspectrum given by:
-       *    - ABT, I. & J.R. SMITH (1992): MC upgrades to study untagged events. - H1-10/92-249.
-       *    - SMITH, J.R. (1992): An experimentalist's guide to photon flux calculations. - H1-12/92-259.
-       *    - SMITH, J.R. & B.D. BUROW (1994): Photon fluxes with beam mass effects and polarizations. - H1-01/94-338.
-       * 3) full transversal and longitudinal spectrum by ABT&SMITH
+       * 2. full transversal photonspectrum given by: [ABT, I. & J.R. SMITH (1992): MC upgrades to study untagged events. - H1-10/92-249], \cite Smith:1993jqa, \cite Smith:1994ef
+       * 3. full transversal and longitudinal spectrum by ABT&SMITH
        *    - calculate integrated factor over the spectrum:
        *       kinematical bounds \f$Y_{\rm min}\f$,  \f$Y_{\rm max} (W_{\rm min})\f$, \f$Q^2_{\rm min}\f$, \f$Q^2_{\rm max} (Q^2_{\rm cutoff})\f$.
        */
@@ -78,6 +78,6 @@ namespace CepGen {
     const std::array<unsigned int, 2> max_errors_;
     mutable double epa_max_;
   };
-}  // namespace CepGen
+}  // namespace cepgen
 
 #endif

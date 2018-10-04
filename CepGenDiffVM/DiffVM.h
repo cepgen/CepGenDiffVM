@@ -20,12 +20,13 @@
 #define CepGenProcesses_DiffVM_h
 
 #include "CepGen/Processes/GenericProcess.h"
-#include "CepGen/Core/ParametersList.h"
 
-namespace CepGen {
+namespace cepgen {
   class BreitWigner;
   class EPA;
+  class ParametersList;
   namespace Process {
+    /// Diffractive vector meson (photo)production as in DIFFVM \cite List:1998jz
     class DiffVM : public GenericProcess {
     public:
       explicit DiffVM(const ParametersList&);
@@ -50,7 +51,9 @@ namespace CepGen {
       /// \return Photon virtuality, in \f${\rm GeV}^2\f$
       double computeT(double x, double b) const;
 
+      /// Type of vector meson exchanged
       PDG vm_pdgid_;
+      /// Beam particles treatment mode
       enum class BeamMode {
         Elastic = 0,
         GluonFragmentation = -1,
@@ -63,11 +66,12 @@ namespace CepGen {
       /// Human-readable format of a photon generation mode
       friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
       struct SlopeParameters {
-        SlopeParameters(const ParametersList& params = ParametersList());
-        /// slope parameter b of t distribution in \f${\rm GeV}^{-2}\$f
-        /// * at CM energy \a wb0, and
-        /// * at mass \a amxb0 (for diffractive dissociation)
-        /// \note Must be positive!
+        SlopeParameters(const ParametersList& params);
+        /** \brief Slope parameter b of t distribution in GeV\f${}^{-2}\f$
+           * * at CM energy \a wb0, and
+           * * at mass \a amxb0 (for diffractive dissociation)
+           * \note Must be positive!
+           */
         double b0;
         /// CM energy of \f$\gamma p\f$ system at which \f$b_0\f$ was measured, in GeV
         double wb0;
@@ -77,29 +81,34 @@ namespace CepGen {
         double anexp;
       } slp_;
       struct PomeronParameters {
-        PomeronParameters(const ParametersList& params = ParametersList());
-        /// Intercept of pomeron trajectory minus 1
-        /// \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
+        PomeronParameters(const ParametersList& params);
+        /** \brief Intercept of pomeron trajectory minus 1
+           * \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
+           */
         double epsilw;
-        /// Intercept of pomeron trajectory minus 1
-        /// \note Controls \f$M_{X}\f$ spectrum
+        /** \brief Intercept of pomeron trajectory minus 1
+           * \note Controls \f$M_{X}\f$ spectrum
+           */
         double epsilm;
-        /// Slope alpha' of pomeron trajectory in \f${\rm GeV}^{-2}\f$
-        /// \note Controls shrinkage of b slope
+        /** \brief Slope alpha' of pomeron trajectory in GeV\f${}^{-2}\f$
+           * \note Controls shrinkage of b slope
+           */
         double alpha1;
         double alpha1m;
       } pom_;
       struct VectorMesonParameters {
-        VectorMesonParameters(const ParametersList& params = ParametersList());
-        /// Parameter for Q2-dependence of cross section in GeV
-        /// \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
+        VectorMesonParameters(const ParametersList& params);
+        /** \brief Parameter for \f$Q^2\f$-dependence of cross section in GeV
+           * \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
+           */
         double lambda;
         /// Propagator term exponent
         double eprop;
-        /// Parameter for \f$Q^2\f$-dependence of \f$\sigma_L/\sigma_T\f$
-        /// \note
-        ///  * \f$\frac{\sigma_L(Q^2)}{\sigma_T(Q^2)}=\frac{\xi Q^2/m^2}{1+\xi\chi Q^2/m^2}\f$ where \f$\sigma_L/\sigma_T\to \xi Q^2/m^2\f$ for low-\f$Q^2\f$, and \f$\sigma_L/\sigma_T\to 1/\chi\f$ for high-\f$Q^2\f$ ;
-        ///  * \f$\xi\f$ is assumed to be less than 4 (more precisely, it is assumed that \f$\sigma_L(Q^2)\f$ is always less than \f$\sigma_T(0)\f$).
+        /** \brief Parameter for \f$Q^2\f$-dependence of \f$\sigma_L/\sigma_T\f$
+            * \note
+            *  * \f$\frac{\sigma_L(Q^2)}{\sigma_T(Q^2)}=\frac{\xi Q^2/m^2}{1+\xi\chi Q^2/m^2}\f$ where \f$\sigma_L/\sigma_T\to \xi Q^2/m^2\f$ for low-\f$Q^2\f$, and \f$\sigma_L/\sigma_T\to 1/\chi\f$ for high-\f$Q^2\f$ ;
+            *  * \f$\xi\f$ is assumed to be less than 4 (more precisely, it is assumed that \f$\sigma_L(Q^2)\f$ is always less than \f$\sigma_T(0)\f$).
+            */
         double xi;
         /// Purely phenomenological parameter with no theoretical justification (see \a xi)
         double chi;
@@ -118,6 +127,6 @@ namespace CepGen {
       Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
     };
   }  // namespace Process
-}  // namespace CepGen
+}  // namespace cepgen
 
 #endif

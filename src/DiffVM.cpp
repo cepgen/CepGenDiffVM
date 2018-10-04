@@ -20,6 +20,7 @@
 #include <math.h>
 
 #include "CepGen/Core/Exception.h"
+#include "CepGen/Core/ParametersList.h"
 #include "CepGen/Event/Event.h"
 #include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/EPA.h"
@@ -69,14 +70,14 @@ namespace CepGen {
       cuts_ = kin;
       prepareKinematics();
 
-      const Particle &ip1 = event_->getOneByRole(Particle::IncomingBeam1),
-                     &ip2 = event_->getOneByRole(Particle::IncomingBeam2);
+      const Particle& ip2 = event_->getOneByRole(Particle::IncomingBeam2);
       MY_ = ip2.mass();
 
       const auto& w_limits = cuts_.cuts.central.mass_single;
       const auto& q2_limits = cuts_.cuts.initial.q2;
 
       if (igammd_ >= PhotonMode::WWA) {
+        const Particle& ip1 = event_->getOneByRole(Particle::IncomingBeam1);
         epa_calc_.reset(new EPA(EPA::Mode::wwa));
         epa_calc_->init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
         ndim_++;
@@ -110,7 +111,7 @@ namespace CepGen {
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
       const Particle& vm = event_->getByRole(Particle::CentralSystem)[0];
-      vm_mass_ = vm.mass(), vm_width_ = ParticleProperties::width(vm.pdgId());
+      vm_mass_ = vm.mass(), vm_width_ = particleproperties::width(vm.pdgId());
 
       //--- mass range for VM generation
       double min_vm_mass = -1., max_vm_mass = -1.;
@@ -121,7 +122,7 @@ namespace CepGen {
       } else {
         min_vm_mass = vm_mass_ - 3. * vm_width_;
         max_vm_mass = vm_mass_ + 10. * vm_width_;
-        if (vm.pdgId() == PDG::Rho1450_0 || vm.pdgId() == PDG::Rho1700_0)
+        if (vm.pdgId() == PDG::rho1450_0 || vm.pdgId() == PDG::rho1700_0)
           min_vm_mass = std::max(min_vm_mass, 1.2);
         else if (vm.pdgId() == PDG::h1380_1)
           min_vm_mass = std::max(min_vm_mass, 1.4);
@@ -358,11 +359,11 @@ namespace CepGen {
         m = sqrt(pow(fact * x + m2min, -1. / pom_.epsilm));
       }
       if (m < m_range.min()) {
-        CG_ERROR("DiffVM:mass") << "M=" << m << " < MMIN=" << m_range.min() << ".";
+        CG_ERROR("DiffVM:mass") << "M=" << m << " < minimum mass=" << m_range.min() << " GeV.";
         return m_range.min();
       }
       if (m > m_range.max()) {
-        CG_ERROR("DiffVM:mass") << "M=" << m << " > MMAX=" << m_range.max() << ".";
+        CG_ERROR("DiffVM:mass") << "M=" << m << " > maximum mass=" << m_range.max() << " GeV.";
         return m_range.max();
       }
       if (!treat)

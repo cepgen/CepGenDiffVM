@@ -4,8 +4,8 @@
 #include <CepGen/Physics/Constants.h>
 #include "CepGenDiffVM/EPA.h"
 
-namespace CepGen {
-  const double EPA::ALPHARED = Constants::alphaEM * 0.5 * M_1_PI;
+namespace cepgen {
+  const double EPA::ALPHARED = constants::alphaEM * 0.5 * M_1_PI;
 
   EPA::EPA(const EPA::Mode& mode)
       : mode_(mode),
@@ -256,4 +256,4 @@ namespace CepGen {
     }
     return os;
   }
-}  // namespace CepGen
+}  // namespace cepgen
