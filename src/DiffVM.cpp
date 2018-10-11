@@ -20,19 +20,19 @@
 #include <math.h>
 
 #include "CepGen/Core/Exception.h"
-#include "CepGen/Core/ParametersList.h"
 #include "CepGen/Event/Event.h"
 #include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
+#include "CepGen/Processes/ProcessesHandler.h"
 #include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"
 
-namespace CepGen {
-  namespace Process {
-    DiffVM::DiffVM()
-        : GenericProcess("diffvm", "Diffractive vector meson production"),
-          vm_pdgid_((PDG)params.get<int>("vmFlavour", (int)PDG::JPsi)),
+namespace cepgen {
+  namespace proc {
+    DiffVM::DiffVM(const ParametersList& params)
+        : GenericProcess(params, "diffvm", "Diffractive vector meson production"),
+          vm_pdgid_((PDG)params.get<int>("vmFlavour", (int)PDG::Jpsi)),
           ifragp_((BeamMode)params.get<int>("protonMode", (int)BeamMode::Elastic)),
           ifragv_((BeamMode)params.get<int>("vmMode", (int)BeamMode::Elastic)),
           igammd_((PhotonMode)params.get<int>("photonMode", (int)PhotonMode::WWA)),
@@ -103,14 +103,14 @@ namespace CepGen {
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
-        vm_.lambda = event_->getByRole(Particle::CentralSystem)[0].mass();
+        vm_.lambda = event_->operator[](Particle::CentralSystem)[0].mass();
 
       const double q2_min = q2_limits.min();
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
-      const Particle& vm = event_->getByRole(Particle::CentralSystem)[0];
+      const Particle& vm = event_->operator[](Particle::CentralSystem)[0];
       vm_mass_ = vm.mass(), vm_width_ = particleproperties::width(vm.pdgId());
 
       //--- mass range for VM generation
@@ -276,7 +276,7 @@ namespace CepGen {
       return weight;
     }
 
-    unsigned int DiffVM::numDimensions(const Kinematics::Mode&) const { return ndim_; }
+    unsigned int DiffVM::numDimensions() const { return ndim_; }
 
     void DiffVM::fillKinematics() {
       auto& gam = event_->getOneByRole(Particle::Parton1);
@@ -298,7 +298,7 @@ namespace CepGen {
       auto& gampom = event_->getOneByRole(Particle::Intermediate);
       gampom.setMomentum(p_gam_ + p_px_lab);
 
-      auto& vmx = event_->getByRole(Particle::CentralSystem)[0];
+      auto& vmx = event_->operator[](Particle::CentralSystem)[0];
       Particle::Momentum p_vm_lab = p_vm_cm_;
       p_vm_lab.lorentzBoost(-p_cm_);
       vmx.setMomentum(p_vm_lab);
@@ -452,5 +452,7 @@ namespace CepGen {
       }
       return os;
     }
-  }  // namespace Process
-}  // namespace CepGen
+    // register process and define aliases
+    REGISTER_PROCESS(diffvm, DiffVM)
+  }  // namespace proc
+}  // namespace cepgen

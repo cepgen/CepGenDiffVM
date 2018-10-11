@@ -18,7 +18,7 @@ namespace cepgen {
       wwa = 1,                      ///< WWA approximation (including e-mass effect and longitudinal flux). Recommended
       transverse = 2,               ///< transverse spectrum
       transverse_longitudinal = 3,  ///< transverse & longitudinal spectrum
-      transverse_longitudinal_pframe = 4  ///< as 3, but flux in p rest frame
+      transverse_longitudinal_pframe = 4  ///< as @a transverse_longitudinal, but flux in proton rest frame
     };
     friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
 
@@ -50,8 +50,8 @@ namespace cepgen {
        *      \f$ P(y, Q^2) = \frac{\alpha}{2\pi}\frac{1}{Q^2 y}\left(2(1-y)\left(1-\frac{Q^2_{\rm min}}{Q^2}\right)+y^2\right),\f$
        *    - longitudinal photonspectrum (\f$Q^2 \to 0\f$):
        *      \f$ P(y, Q^2) = \frac{\alpha}{2\pi}\frac{1}{Q^2 y}2(1-y).\f$
-       * 2. full transversal photonspectrum given by: [ABT, I. & J.R. SMITH (1992): MC upgrades to study untagged events. - H1-10/92-249], \cite Smith:1993jqa, \cite Smith:1994ef
-       * 3. full transversal and longitudinal spectrum by ABT&SMITH
+       * 2. full transversal photonspectrum given by: \cite Abt:epa,\cite Smith:1993jqa,\cite Smith:1994ef
+       * 3. full transversal and longitudinal spectrum by \cite Abt:epa
        *    - calculate integrated factor over the spectrum:
        *       kinematical bounds \f$Y_{\rm min}\f$,  \f$Y_{\rm max} (W_{\rm min})\f$, \f$Q^2_{\rm min}\f$, \f$Q^2_{\rm max} (Q^2_{\rm cutoff})\f$.
        */
