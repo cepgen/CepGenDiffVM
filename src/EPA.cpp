@@ -1,16 +1,17 @@
 #include <iostream>
 
 #include <CepGen/Core/Exception.h>
+#include <CepGen/Core/ParametersList.h>
 #include <CepGen/Physics/Constants.h>
 #include "CepGenDiffVM/EPA.h"
 
 namespace cepgen {
   const double EPA::ALPHARED = constants::alphaEM * 0.5 * M_1_PI;
 
-  EPA::EPA(const EPA::Mode& mode)
-      : mode_(mode),
-        y_range_({0., 1.}),
-        dy_range_({0., 1.}),
+  EPA::EPA(const ParametersList& params)
+      : mode_((Mode)params.get<int>("mode", (int)Mode::wwa)),
+        y_range_(params.get<Limits>("yRange", {0., 1.})),
+        dy_range_(params.get<Limits>("dyRange", {0., 1.})),
         s_(0.),
         w12_(0.),
         elpr_(0.),

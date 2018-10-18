@@ -7,6 +7,7 @@
 #include "CepGen/Utils/Limits.h"
 
 namespace cepgen {
+  class ParametersList;
   /// \brief An Equivalent Photon Approximation calculator
   /// \author Benno List
   /// \author Thomas Jansen
@@ -23,27 +24,27 @@ namespace cepgen {
     friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
 
     /// Default constructor
-    EPA(const Mode& mode = Mode::wwa);
+    explicit EPA(const ParametersList&);
     /// Output format for a given approximation
     struct Result {
       Result() : valid(false), q2(0.), heli(0) {}
       bool valid;
-      /// 5-vector of photon in H1 lab. system (5th component is sign (q2)*sqrt (abs (q2)))
+      /// 5-vector of photon in laboratory system (5th component is \f${\rm sign}(q^2)\cdot\sqrt{|q^2|}\f$)
       Momentum pph;
       /// 5-vector of scattered electron
       Momentum ppe;
-      /// Virtuality of photon (positive!): Q2 = -q2
+      /// Virtuality of photon (positive!): \f$Q^2 = -q^2\f$
       double q2;
       /// Photon helicity:
       /// - 0: longitudinal,
-      /// - +/-1: transverse polarization
+      /// - \f$\pm\f$1: transverse polarization
       short heli;
     };
 
     /// Initialize histograms, constants, kinematical bounds
     void init(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range);
 
-    /// generate one event with unweighted photon and electron
+    /// Generate one event with unweighted photon and electron
     /** \note
        * 1. according to WWA:
        *    - transversal photonspectrum (\f$Q^2 \to 0\f$):
@@ -63,7 +64,7 @@ namespace cepgen {
     /// \date 27 May 1993
     /// \param[in] longfr Fraction of longitudinally polarized photons
     /// \note IHELI in DIFFVM
-    /// \return Helicity of the photon (+/-1: transverse photon, 0: longitudinal photon)
+    /// \return Helicity of the photon (\f$\pm\f$1: transverse photon, 0: longitudinal photon)
     short helicity(double longfr) const;
     /// alpha/2pi
     static const double ALPHARED;

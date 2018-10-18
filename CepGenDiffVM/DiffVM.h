@@ -19,23 +19,23 @@
 #ifndef CepGenProcesses_DiffVM_h
 #define CepGenProcesses_DiffVM_h
 
+#include "CepGen/Core/ParametersList.h"
+#include "CepGen/Physics/EPA.h"
 #include "CepGen/Processes/GenericProcess.h"
 
 namespace cepgen {
   class BreitWigner;
-  class EPA;
-  class ParametersList;
-  namespace Process {
+  namespace proc {
     /// Diffractive vector meson (photo)production as in DIFFVM \cite List:1998jz
     class DiffVM : public GenericProcess {
     public:
-      explicit DiffVM(const ParametersList&);
-      ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
+      explicit DiffVM(const ParametersList& = ParametersList());
+      ProcessPtr clone(const ParametersList& params) const override { return ProcessPtr(new DiffVM(params)); }
 
       void addEventContent() override;
       void setKinematics(const Kinematics&) override;
       double computeWeight() override;
-      unsigned int numDimensions(const Kinematics::Mode&) const override;
+      unsigned int numDimensions() const override;
       void fillKinematics() override;
 
     private:
@@ -113,20 +113,20 @@ namespace cepgen {
         /// Purely phenomenological parameter with no theoretical justification (see \a xi)
         double chi;
       } vm_;
+      EPA epa_calc_;
 
       double bmin_;
       double dmxv_;
       double min_pho_energy_, max_s_;
       double vm_mass_, vm_width_;
       std::shared_ptr<BreitWigner> vm_bw_;
-      std::shared_ptr<EPA> epa_calc_;
       double prop_mx_;
       unsigned short ndim_;
 
       Particle::Momentum p_gam_, p_gam_remn_;
       Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
     };
-  }  // namespace Process
+  }  // namespace proc
 }  // namespace cepgen
 
 #endif

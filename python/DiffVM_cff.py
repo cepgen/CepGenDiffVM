@@ -1,5 +1,6 @@
-import Config.Core as cepgen
-from Config.PDG_cfi import PDG
+from containers_cfi import Module, Parameters
+from ProcessMode_cfi import ProcessMode
+from PDG_cfi import PDG
 
 class BeamMode:
     '''Beam particles treatment mode'''
@@ -16,8 +17,8 @@ class PhotonMode:
     ABTSmith =  2
     AandS    =  3
 
-defaultProcessParameters = cepgen.Parameters(
-    mode = cepgen.ProcessMode.ElasticElastic,
+defaultProcessParameters = Parameters(
+    mode = ProcessMode.ElasticElastic,
     vmFlavour = PDG.Jpsi,
     photonMode = PhotonMode.WWA,
     protonMode = BeamMode.Elastic,

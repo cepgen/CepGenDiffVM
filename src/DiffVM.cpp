@@ -24,6 +24,7 @@
 #include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
+#include "CepGen/Processes/DiffVM.h"
 #include "CepGen/Processes/ProcessesHandler.h"
 #include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"
@@ -39,6 +40,7 @@ namespace cepgen {
           slp_(params.get<ParametersList>("slopeParameters")),
           pom_(params.get<ParametersList>("pomeronParameters")),
           vm_(params.get<ParametersList>("vmParameters")),
+          epa_calc_(params.get<ParametersList>("epaParameters")),
           bmin_(0.),
           dmxv_(0.),
           min_pho_energy_(0.),
@@ -67,19 +69,18 @@ namespace cepgen {
           chi(params.get<double>("chi", 1.)) {}
 
     void DiffVM::setKinematics(const Kinematics& kin) {
-      cuts_ = kin;
+      kin_ = kin;
       prepareKinematics();
 
       const Particle& ip2 = event_->getOneByRole(Particle::IncomingBeam2);
       MY_ = ip2.mass();
 
-      const auto& w_limits = cuts_.cuts.central.mass_single;
-      const auto& q2_limits = cuts_.cuts.initial.q2;
+      const auto& w_limits = kin_.cuts.central.mass_single;
+      const auto& q2_limits = kin_.cuts.initial.q2;
 
       if (igammd_ >= PhotonMode::WWA) {
         const Particle& ip1 = event_->getOneByRole(Particle::IncomingBeam1);
-        epa_calc_.reset(new EPA(EPA::Mode::wwa));
-        epa_calc_->init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
+        epa_calc_.init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
         ndim_++;
       }
 
@@ -115,7 +116,7 @@ namespace cepgen {
 
       //--- mass range for VM generation
       double min_vm_mass = -1., max_vm_mass = -1.;
-      const auto& invm_limits = cuts_.cuts.central.mass_sum;
+      const auto& invm_limits = kin_.cuts.central.mass_sum;
       if (invm_limits.valid()) {
         min_vm_mass = invm_limits.min();
         max_vm_mass = invm_limits.max();
@@ -149,7 +150,7 @@ namespace cepgen {
         return 0.;
 
       const double q2 = event_->getOneByRole(Particle::Parton1).momentum().mass2();
-      if (!cuts_.cuts.initial.q2.passes(q2))
+      if (!kin_.cuts.initial.q2.passes(q2))
         return 0.;
 
       //--- determine actual CM energy
@@ -332,7 +333,7 @@ namespace cepgen {
         case PhotonMode::ABTSmith:
         case PhotonMode::AandS: {
           assert(x.size() > 1);
-          const auto& res = epa_calc_->operator()(x[0], x[1]);
+          const auto& res = epa_calc_(x[0], x[1]);
           p_gam_ = res.pph;
           p_gam_remn_ = res.ppe;
           return res.valid;
@@ -345,7 +346,7 @@ namespace cepgen {
     }
 
     double DiffVM::outgoingPrimaryParticleMass(double x, double& y, bool treat) const {
-      const auto& m_range = cuts_.cuts.remnants.mass_single;
+      const auto& m_range = kin_.cuts.remnants.mass_single;
       double m = 0.;
       if (fabs(pom_.epsilm) < 1.e-3) {
         //--- basic spectrum: 1/M^2
@@ -399,7 +400,7 @@ namespace cepgen {
     }
 
     double DiffVM::computeT(double x, double b) const {
-      const auto& t_range = cuts_.cuts.initial.q2;
+      const auto& t_range = kin_.cuts.initial.q2;
       const double t_min = t_range.min(), t_max = t_range.max();
 
       double bloc = b;
