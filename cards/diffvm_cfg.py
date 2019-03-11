@@ -8,10 +8,11 @@ from Integrators.vegas_cfi import vegas as integrator
 
 
 DiffVMPDG = cepgen.Parameters(
+    omega782  = Parameters(pdgid = 223),
     Jpsi      = Parameters(pdgid = 443),
+    h1380_1   = Parameters(pdgid = 10333),
+    phi1680   = Parameters(pdgid = 100333),
     Upsilon1S = Parameters(pdgid = 553),
-    proton    = Parameters(pdgid = 2212),
-    neutron   = Parameters(pdgid = 2112),
     Upsilon2S = Parameters(pdgid = 100553),
     Upsilon3S = Parameters(pdgid = 200553),
 )
@@ -25,11 +26,14 @@ import Config.DiffVM_cff as diffvm
 
 process = cepgen.Module('diffvm',
     processParameters = diffvm.defaultProcessParameters.clone(
-        vmFlavour = DiffVMPDG.Upsilon1S,
+        vmFlavour = DiffVMPDG.omega782,
         #protonMode = diffvm.BeamMode.StandardFragmentation,
         epaParameters = EPA.clone(
             mode = EPAMode.T,
             yRange = (0.,0.5),
+        ),
+        slopeParameters = cepgen.Parameters(
+            b0 = 5.5,
         ),
     ),
     inKinematics = cepgen.Parameters(
@@ -42,6 +46,7 @@ process = cepgen.Module('diffvm',
         mx = (1.07, 1000.),
     ),
 )
+print process.processParameters
 
 generator = _gen.clone(
     numEvents = 25000,

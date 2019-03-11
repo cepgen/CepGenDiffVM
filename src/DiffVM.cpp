@@ -24,6 +24,7 @@
 #include "CepGen/Physics/BreitWigner.h"
 #include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
+#include "CepGen/Physics/ParticleProperties.h"
 #include "CepGen/Processes/DiffVM.h"
 #include "CepGen/Processes/ProcessesHandler.h"
 #include "CepGen/Utils/String.h"
