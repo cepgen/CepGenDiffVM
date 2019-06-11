@@ -52,19 +52,15 @@ namespace cepgen {
       double computeT(double x, double b) const;
 
       /// Type of vector meson exchanged
-      PDG vm_pdgid_;
+      pdgid_t vm_pdgid_;
       /// Beam particles treatment mode
-      enum class BeamMode {
-        Elastic = 0,
-        GluonFragmentation = -1,
-        StandardFragmentation = 1,
-        NucleonPionsDecay = 2
-      } ifragp_,
-          ifragv_;
+      enum class BeamMode { Elastic = 0, GluonFragmentation = -1, StandardFragmentation = 1, NucleonPionsDecay = 2 };
+      BeamMode ifragp_, ifragv_;
       /// Photon generation mode
-      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 } igammd_;
+      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 };
       /// Human-readable format of a photon generation mode
       friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
+      PhotonMode igammd_;
       struct SlopeParameters {
         SlopeParameters(const ParametersList& params);
         /** \brief Slope parameter b of t distribution in GeV\f${}^{-2}\f$

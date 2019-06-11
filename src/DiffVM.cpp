@@ -34,7 +34,7 @@ namespace cepgen {
   namespace proc {
     DiffVM::DiffVM(const ParametersList& params)
         : GenericProcess(params, "diffvm", "Diffractive vector meson production"),
-          vm_pdgid_((PDG)params.get<int>("vmFlavour", (int)PDG::Jpsi)),
+          vm_pdgid_(params.get<ParticleProperties>("vmFlavour").pdgid),
           ifragp_((BeamMode)params.get<int>("protonMode", (int)BeamMode::Elastic)),
           ifragv_((BeamMode)params.get<int>("vmMode", (int)BeamMode::Elastic)),
           igammd_((PhotonMode)params.get<int>("photonMode", (int)PhotonMode::WWA)),
@@ -113,7 +113,7 @@ namespace cepgen {
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
       const Particle& vm = event_->operator[](Particle::CentralSystem)[0];
-      vm_mass_ = vm.mass(), vm_width_ = particleproperties::width(vm.pdgId());
+      vm_mass_ = vm.mass(), vm_width_ = PDG::get().width(vm.pdgId());
 
       //--- mass range for VM generation
       double min_vm_mass = -1., max_vm_mass = -1.;
