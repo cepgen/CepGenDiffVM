@@ -119,8 +119,8 @@ namespace cepgen {
       double prop_mx_;
       unsigned short ndim_;
 
-      Particle::Momentum p_gam_, p_gam_remn_;
-      Particle::Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
+      Momentum p_gam_, p_gam_remn_;
+      Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
     };
   }  // namespace proc
 }  // namespace cepgen

@@ -246,7 +246,7 @@ namespace cepgen {
 
       //--- calculate 5-vectors of diffractive states in the CMS
 
-      Particle::Momentum p_vm_cm = p_gam_;
+      Momentum p_vm_cm = p_gam_;
       p_vm_cm.lorentzBoost(p_cm_);
 
       // ivvm
@@ -254,7 +254,7 @@ namespace cepgen {
 
       const double p_gamf = p_out * ctheta / p_vm_cm.p();
       const double phi = 2. * M_PI * x(2);
-      const Particle::Momentum pt(
+      const Momentum pt(
           -cos(phi) * p_vm_cm.pz(), sin(phi) * p_vm_cm.pz(), cos(phi) * p_vm_cm.px() - sin(phi) * p_vm_cm.py());
       const double ptf = p_out * stheta / std::hypot(p_vm_cm.pz(), pt.pz());
 
@@ -288,12 +288,12 @@ namespace cepgen {
       op_gam.setMomentum(p_gam_remn_);
 
       auto& pom = event_->getOneByRole(Particle::Parton2);
-      Particle::Momentum p_pom_lab = p_pom_cm_;
+      Momentum p_pom_lab = p_pom_cm_;
       p_pom_lab.lorentzBoost(-p_cm_);
       pom.setMomentum(p_pom_lab);
 
       auto& op_pom = event_->getOneByRole(Particle::OutgoingBeam2);
-      Particle::Momentum p_px_lab = p_px_cm_;
+      Momentum p_px_lab = p_px_cm_;
       p_px_lab.lorentzBoost(-p_cm_);
       op_pom.setMomentum(p_px_lab);
 
@@ -301,13 +301,13 @@ namespace cepgen {
       gampom.setMomentum(p_gam_ + p_px_lab);
 
       auto& vmx = event_->operator[](Particle::CentralSystem)[0];
-      Particle::Momentum p_vm_lab = p_vm_cm_;
+      Momentum p_vm_lab = p_vm_cm_;
       p_vm_lab.lorentzBoost(-p_cm_);
       vmx.setMomentum(p_vm_lab);
     }
 
     bool DiffVM::generatePhoton(const std::vector<double>& x) {
-      const Particle::Momentum p_ib = event_->getOneByRole(Particle::IncomingBeam1).momentum();
+      const Momentum p_ib = event_->getOneByRole(Particle::IncomingBeam1).momentum();
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
           const double e_gamma = 3.;  // in steering card
@@ -454,7 +454,9 @@ namespace cepgen {
       }
       return os;
     }
-    // register process and define aliases
-    REGISTER_PROCESS(diffvm, DiffVM)
   }  // namespace proc
 }  // namespace cepgen
+
+// register process
+typedef cepgen::proc::DiffVM DiffVM;
+REGISTER_PROCESS("diffvm", DiffVM);

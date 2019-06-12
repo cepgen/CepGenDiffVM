@@ -1,7 +1,8 @@
 #ifndef CepGenDiffVM_EPA_h
 #define CepGenDiffVM_EPA_h
 
-#include <ostream>
+#include <array>
+#include <iosfwd>
 
 #include "CepGen/Physics/Momentum.h"
 #include "CepGen/Utils/Limits.h"
@@ -27,18 +28,17 @@ namespace cepgen {
     explicit EPA(const ParametersList&);
     /// Output format for a given approximation
     struct Result {
-      Result() : valid(false), q2(0.), heli(0) {}
-      bool valid;
+      bool valid{false};
       /// 5-vector of photon in laboratory system (5th component is \f${\rm sign}(q^2)\cdot\sqrt{|q^2|}\f$)
       Momentum pph;
       /// 5-vector of scattered electron
       Momentum ppe;
       /// Virtuality of photon (positive!): \f$Q^2 = -q^2\f$
-      double q2;
+      double q2{0.};
       /// Photon helicity:
       /// - 0: longitudinal,
       /// - \f$\pm\f$1: transverse polarization
-      short heli;
+      short heli{0};
     };
 
     /// Initialize histograms, constants, kinematical bounds
