@@ -150,11 +150,11 @@ namespace cepgen {
       if (!generatePhoton({x(0), x(4)}))
         return 0.;
 
-      const double q2 = event_->getOneByRole(Particle::Parton1).momentum().mass2();
+      const double q2 = p_gam_.mass2();
       if (!kin_.cuts.initial.q2.passes(q2))
         return 0.;
 
-      //--- determine actual CM energy
+      //--- determine gamma*-p energy
       p_cm_ = p_gam_ + event_->getOneByRole(Particle::IncomingBeam2).momentum();
       w2_ = p_cm_.energy2();
       const double w = sqrt(w2_);
