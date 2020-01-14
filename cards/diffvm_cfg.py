@@ -1,5 +1,4 @@
 import Config.Core as cepgen
-#from Config.pythia8_cff import pythia8 as hadroniser
 from Config.PDG_cfi import PDG
 from Config.EPA_cfi import EPA, EPAMode
 from Config.logger_cfi import logger
@@ -41,7 +40,7 @@ process = cepgen.Module('diffvm',
         pz = (27.55, 820.),
     ),
     outKinematics = cepgen.Parameters(
-        w = (5.,),
+        mass = (5.,),
         #invmass = ( 0., 6. ),
         mx = (1.07, 1000.),
     ),

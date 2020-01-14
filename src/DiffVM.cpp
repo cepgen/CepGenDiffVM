@@ -16,24 +16,21 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <math.h>
+#include <cassert>
+#include <cmath>
 
 #include "CepGen/Core/Exception.h"
 #include "CepGen/Event/Event.h"
+#include "CepGen/Modules/ProcessFactory.h"
 #include "CepGen/Physics/BreitWigner.h"
-#include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
 #include "CepGen/Physics/ParticleProperties.h"
-#include "CepGen/Processes/DiffVM.h"
-#include "CepGen/Processes/ProcessesHandler.h"
-#include "CepGen/Utils/String.h"
 #include "CepGenProcesses/DiffVM.h"
 
 namespace cepgen {
   namespace proc {
     DiffVM::DiffVM(const ParametersList& params)
-        : GenericProcess(params, "diffvm", "Diffractive vector meson production"),
+        : Process(params),
           vm_pdgid_(params.get<ParticleProperties>("vmFlavour").pdgid),
           ifragp_((BeamMode)params.get<int>("protonMode", (int)BeamMode::Elastic)),
           ifragv_((BeamMode)params.get<int>("vmMode", (int)BeamMode::Elastic)),
@@ -41,15 +38,7 @@ namespace cepgen {
           slp_(params.get<ParametersList>("slopeParameters")),
           pom_(params.get<ParametersList>("pomeronParameters")),
           vm_(params.get<ParametersList>("vmParameters")),
-          epa_calc_(params.get<ParametersList>("epaParameters")),
-          bmin_(0.),
-          dmxv_(0.),
-          min_pho_energy_(0.),
-          max_s_(0.),
-          vm_mass_(0.),
-          vm_width_(0.),
-          prop_mx_(0.),
-          ndim_(4) {}
+          epa_calc_(params.get<ParametersList>("epaParameters")) {}
 
     DiffVM::SlopeParameters::SlopeParameters(const ParametersList& params)
         : b0(params.get<double>("b0", 4.)),
@@ -69,20 +58,24 @@ namespace cepgen {
           xi(params.get<double>("xi", 1.)),
           chi(params.get<double>("chi", 1.)) {}
 
-    void DiffVM::setKinematics(const Kinematics& kin) {
-      kin_ = kin;
-      prepareKinematics();
+    void DiffVM::prepareKinematics() {
+      const Particle& ip2 = event_->oneWithRole(Particle::IncomingBeam2);
+      mY2_ = ip2.mass2();
 
-      const Particle& ip2 = event_->getOneByRole(Particle::IncomingBeam2);
-      MY_ = ip2.mass();
+      const auto& w_limits = kin_.cuts().central.mass_single;
+      const auto& q2_limits = kin_.cuts().initial.q2;
 
-      const auto& w_limits = kin_.cuts.central.mass_single;
-      const auto& q2_limits = kin_.cuts.initial.q2;
+      //--- variables mapping
+      defineVariable(
+          phi_var_, Mapping::linear, {0., 2. * M_PI}, {0., 2. * M_PI}, "phi");  //FIXME extra factor 2*pi, to be checked
+      defineVariable(t_var_, Mapping::linear, {0., 1.}, {0., 1.}, "Tvar");
+      defineVariable(pho_var_, Mapping::linear, {0., 1.}, {0., 1.}, "PHOvar");
+      defineVariable(difp_var_, Mapping::linear, {0., 1.}, {0., 1.}, "DPvar");
 
       if (igammd_ >= PhotonMode::WWA) {
-        const Particle& ip1 = event_->getOneByRole(Particle::IncomingBeam1);
+        const Particle& ip1 = event_->oneWithRole(Particle::IncomingBeam1);
         epa_calc_.init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
-        ndim_++;
+        defineVariable(wwa_var_, Mapping::linear, {0., 1.}, {0., 1.}, "WWAvar");
       }
 
       if (ifragp_ == BeamMode::Elastic) {
@@ -95,7 +88,7 @@ namespace cepgen {
           bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(slp_.amxb0 / slp_.wb0);
         else {
           bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(4. * pow(slp_.amxb0, 2) / (slp_.wb0 * sqs_));
-          ndim_++;
+          defineVariable(vm_var_, Mapping::linear, {0., 1.}, {0., 1.}, "VMvar");
         }
       }
       bmin_ = std::max(bmin_, 0.5);
@@ -105,19 +98,19 @@ namespace cepgen {
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
-        vm_.lambda = event_->operator[](Particle::CentralSystem)[0].mass();
+        vm_.lambda = (*event_)[Particle::CentralSystem][0].mass();
 
       const double q2_min = q2_limits.min();
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
-      const Particle& vm = event_->operator[](Particle::CentralSystem)[0];
+      const Particle& vm = (*event_)[Particle::CentralSystem][0];
       vm_mass_ = vm.mass(), vm_width_ = PDG::get().width(vm.pdgId());
 
       //--- mass range for VM generation
       double min_vm_mass = -1., max_vm_mass = -1.;
-      const auto& invm_limits = kin_.cuts.central.mass_sum;
+      const auto& invm_limits = kin_.cuts().central.mass_sum;
       if (invm_limits.valid()) {
         min_vm_mass = invm_limits.min();
         max_vm_mass = invm_limits.max();
@@ -147,17 +140,17 @@ namespace cepgen {
       // GENGAM
       //================================================================
 
-      if (!generatePhoton({x(0), x(4)}))
+      if (!generatePhoton())
         return 0.;
 
       const double q2 = p_gam_.mass2();
-      if (!kin_.cuts.initial.q2.passes(q2))
+      if (!kin_.cuts().initial.q2.contains(q2))
         return 0.;
 
       //--- determine gamma*-p energy
-      p_cm_ = p_gam_ + event_->getOneByRole(Particle::IncomingBeam2).momentum();
-      w2_ = p_cm_.energy2();
-      const double w = sqrt(w2_);
+      p_cm_ = p_gam_ + event_->oneWithRole(Particle::IncomingBeam2).momentum();
+      mB2_ = p_cm_.energy2();
+      const double w = sqrt(mB2_);
 
       double weight = 1.;
 
@@ -165,7 +158,7 @@ namespace cepgen {
       weight /= pow(1. + q2 / pow(vm_.lambda, 2), vm_.eprop);
 
       //      const double drlt = vm_.xi*q2/( pow( vm_.lambda, 2 )+vm_.xi*vm_.chi*q2 );
-      weight *= pow(w2_ / max_s_, 2. * pom_.epsilw) / prop_mx_;
+      weight *= pow(mB2_ / max_s_, 2. * pom_.epsilw) / prop_mx_;
 
       //================================================================
       // GENMXT
@@ -175,10 +168,10 @@ namespace cepgen {
       //--- vector meson mass
       switch (ifragv_) {
         case BeamMode::Elastic:
-          dmxv_ = vm_bw_->operator()(x(3));
+          dmxv_ = (*vm_bw_)(vm_var_);
           break;
         default:
-          dmxv_ = outgoingPrimaryParticleMass(x(3), dum, false);
+          dmxv_ = outgoingPrimaryParticleMass(vm_var_, dum, false);
           break;
       }
       if (dmxv_ <= 0.)
@@ -188,29 +181,31 @@ namespace cepgen {
         case BeamMode::Elastic:
           break;
         default:
-          MY_ = outgoingPrimaryParticleMass(x(5), dum, true);
+          mY = pow(outgoingPrimaryParticleMass(difp_var_, dum, true), 2);
           break;
       }
-      if (MY_ <= 0.)
+      if (mY <= 0.)
         return 0.;
 
       //--- return if generated masses are bigger than CM energy
-      if (MY_ + dmxv_ > w - 0.1)
+      if (mY + dmxv_ > w - 0.1)
         return 0.;
+
+      mY2_ = mY * mY;
 
       //--- calculate slope parameter b
       // generate t with e**(b*t) distribution
 
       double b = slp_.b0 + 4. * pom_.alpha1 * log(w / slp_.wb0);
       if (ifragp_ != BeamMode::Elastic)
-        b -= 4. * pom_.alpha1m * log(MY_ / slp_.amxb0);
+        b -= 4. * pom_.alpha1m * log(mY / slp_.amxb0);
       if (ifragv_ != BeamMode::Elastic)
         b -= 4. * pom_.alpha1 * log(dmxv_ / slp_.amxb0);
       b = std::max(b, 0.5);
 
       weight *= bmin_ / b;
 
-      const double t = computeT(x(1), b);
+      const double t = computeT(t_var_, b);
       CG_DEBUG_LOOP("DiffVM:weight") << "computed t=" << t << " GeV² for b=" << b << ".";
 
       //--- calculate actual minimal and maximal t for the generated masses
@@ -221,10 +216,10 @@ namespace cepgen {
       // The formula for Pcm1 is altered to take the imaginary photon mass into account.
 
       const double inv_w = 1. / w;
-      const double pcm1 = 0.5 * sqrt(pow(w2_ + q2 - mp2_, 2) + 4. * q2 * mp2_) * inv_w;
-      const double p_out = 0.5 * sqrt((w2_ - pow(dmxv_ + MY_, 2)) * (w2_ - pow(dmxv_ - MY_, 2))) * inv_w;  // pcm3
-      const double t_mean = 0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - MY_ * MY_) * inv_w * inv_w + w2_ + q2 - mp2_ -
-                                   dmxv_ * dmxv_ - MY_ * MY_);
+      const double pcm1 = 0.5 * sqrt(pow(mB2_ + q2 - mp2_, 2) + 4. * q2 * mp2_) * inv_w;
+      const double p_out = 0.5 * sqrt((mB2_ - pow(dmxv_ + mY, 2)) * (mB2_ - pow(dmxv_ - mY, 2))) * inv_w;  // pcm3
+      const double t_mean =
+          0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - mY2_) * inv_w * inv_w + mB2_ + q2 - mp2_ - dmxv_ * dmxv_ - mY2_);
       const double t_min = t_mean - 2. * pcm1 * p_out, t_max = t_mean + 2. * pcm1 * p_out;
       if (t < t_min || t > t_max)
         return 0.;
@@ -253,9 +248,9 @@ namespace cepgen {
       const double ctheta = 1. - 2. * yhat, stheta = 2. * sqrt(yhat - yhat * yhat);
 
       const double p_gamf = p_out * ctheta / p_vm_cm.p();
-      const double phi = 2. * M_PI * x(2);
-      const Momentum pt(
-          -cos(phi) * p_vm_cm.pz(), sin(phi) * p_vm_cm.pz(), cos(phi) * p_vm_cm.px() - sin(phi) * p_vm_cm.py());
+      const Momentum pt(-cos(phi_var_) * p_vm_cm.pz(),
+                        sin(phi_var_) * p_vm_cm.pz(),
+                        cos(phi_var_) * p_vm_cm.px() - sin(phi_var_) * p_vm_cm.py());
       const double ptf = p_out * stheta / std::hypot(p_vm_cm.pz(), pt.pz());
 
       p_vm_cm_ = p_gamf * p_vm_cm + ptf * pt;
@@ -266,7 +261,7 @@ namespace cepgen {
                                     << "p_out: " << p_out << ", p_vm_cm = " << p_vm_cm_ << ".";
 
       p_px_cm_ = -p_vm_cm_;
-      p_px_cm_.setMass(MY_);
+      p_px_cm_.setMass(mY);
 
       //--- calculate momentum carried by the pomeron
       // pomeron is thought to be a quasireal particle emitted by
@@ -278,11 +273,9 @@ namespace cepgen {
       return weight;
     }
 
-    unsigned int DiffVM::numDimensions() const { return ndim_; }
-
     void DiffVM::fillKinematics() {
-      auto& gam = event_->getOneByRole(Particle::Parton1);
-      gam.setMomentum(p_gam_);
+      (*event_)[Particle::Parton1][0].setMomentum(p_gam_);
+      (*event_)[Particle::OutgoingBeam1][0].setMomentum(p_gam_remn_);
 
       auto& op_gam = event_->getOneByRole(Particle::OutgoingBeam1);
       op_gam.setMomentum(p_gam_remn_);
@@ -290,24 +283,23 @@ namespace cepgen {
       auto& pom = event_->getOneByRole(Particle::Parton2);
       Momentum p_pom_lab = p_pom_cm_;
       p_pom_lab.lorentzBoost(-p_cm_);
-      pom.setMomentum(p_pom_lab);
+      (*event_)[Particle::Parton2][0].setMomentum(p_pom_lab);
 
       auto& op_pom = event_->getOneByRole(Particle::OutgoingBeam2);
       Momentum p_px_lab = p_px_cm_;
       p_px_lab.lorentzBoost(-p_cm_);
-      op_pom.setMomentum(p_px_lab);
+      (*event_)[Particle::OutgoingBeam2][0].setMomentum(p_px_lab);
 
-      auto& gampom = event_->getOneByRole(Particle::Intermediate);
-      gampom.setMomentum(p_gam_ + p_px_lab);
+      (*event_)[Particle::Intermediate][0].setMomentum(p_gam_ + p_px_lab);
 
       auto& vmx = event_->operator[](Particle::CentralSystem)[0];
       Momentum p_vm_lab = p_vm_cm_;
       p_vm_lab.lorentzBoost(-p_cm_);
-      vmx.setMomentum(p_vm_lab);
+      (*event_)[Particle::CentralSystem][0].setMomentum(p_vm_lab);
     }
 
-    bool DiffVM::generatePhoton(const std::vector<double>& x) {
-      const Momentum p_ib = event_->getOneByRole(Particle::IncomingBeam1).momentum();
+    bool DiffVM::generatePhoton() {
+      const Momentum p_ib = event_->oneWithRole(Particle::IncomingBeam1).momentum();
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
           const double e_gamma = 3.;  // in steering card
@@ -319,9 +311,8 @@ namespace cepgen {
           return true;
         } break;
         case PhotonMode::InvK: {  // genphot
-          assert(x.size() > 0);
           const double e_max = p_ib.p();
-          const double r = exp(x[0] * log(min_pho_energy_ / e_max));
+          const double r = exp(pho_var_ * log(min_pho_energy_ / e_max));
           if (r >= 1.)
             CG_WARNING("DiffVM:photon") << "r=" << r << " > 1.";
           p_gam_ = r * p_ib;
@@ -333,8 +324,7 @@ namespace cepgen {
         case PhotonMode::WWA:
         case PhotonMode::ABTSmith:
         case PhotonMode::AandS: {
-          assert(x.size() > 1);
-          const auto& res = epa_calc_(x[0], x[1]);
+          const auto& res = epa_calc_(pho_var_, wwa_var_);
           p_gam_ = res.pph;
           p_gam_remn_ = res.ppe;
           return res.valid;
@@ -347,7 +337,7 @@ namespace cepgen {
     }
 
     double DiffVM::outgoingPrimaryParticleMass(double x, double& y, bool treat) const {
-      const auto& m_range = kin_.cuts.remnants.mass_single;
+      const auto& m_range = kin_.cuts().remnants.mx;
       double m = 0.;
       if (fabs(pom_.epsilm) < 1.e-3) {
         //--- basic spectrum: 1/M^2
@@ -401,7 +391,7 @@ namespace cepgen {
     }
 
     double DiffVM::computeT(double x, double b) const {
-      const auto& t_range = kin_.cuts.initial.q2;
+      const auto& t_range = kin_.cuts().initial.q2();
       const double t_min = t_range.min(), t_max = t_range.max();
 
       double bloc = b;
@@ -411,7 +401,7 @@ namespace cepgen {
       CG_DEBUG_LOOP("DiffVM:t") << "t range: " << t_range << ", b: " << b << ".";
 
       if (b < 0.1) {
-        CG_ERROR("DiffVM:t") << "b = " << b << " < 0.1.";
+        CG_WARNING("DiffVM:t") << "b = " << b << " < 0.1.";
         bloc = 0.1;
       }
       if (t_min >= t_max) {

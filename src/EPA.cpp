@@ -168,7 +168,7 @@ namespace cepgen {
     double r = y * q2 * log(dy_max / dy_min) * log(gq2_max / gq2_min);
     const double w = sqrt(y * 2. * elpr_ - q2 + ppr_.mass2());
     //--- check if W_min < W < W_max, else reject photon
-    if (!w_range_.passes(w))
+    if (!w_range_.contains(w))
       r = 0.;
     epa *= r;
     epa_t *= r;
