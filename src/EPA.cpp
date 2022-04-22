@@ -6,19 +6,23 @@
 #include "CepGenDiffVM/EPA.h"
 
 namespace cepgen {
-  const double EPA::ALPHARED = constants::alphaEM * 0.5 * M_1_PI;
+  const double EPA::ALPHARED = constants::ALPHA_EM * 0.5 * M_1_PI;
 
   EPA::EPA(const ParametersList& params)
-      : mode_((Mode)params.get<int>("mode", (int)Mode::wwa)),
-        y_range_(params.get<Limits>("yRange", {0., 1.})),
-        dy_range_(params.get<Limits>("dyRange", {0., 1.})),
-        s_(0.),
-        w12_(0.),
-        elpr_(0.),
-        eel_(0.),
+      : SteeredObject(params),
+        mode_(steerAs<int, Mode>("mode")),
+        y_range_(steer<Limits>("yRange")),
+        dy_range_(steer<Limits>("dyRange")),
         num_errors_({{0, 0}}),
-        max_errors_({10, 500}),
-        epa_max_(-1.) {}
+        max_errors_({10, 500}) {}
+
+  ParametersDescription EPA::description() {
+    auto desc = ParametersDescription();
+    desc.add<int>("mode", (int)Mode::wwa);
+    desc.add<Limits>("yRange", {0., 1.});
+    desc.add<Limits>("dyRange", {0., 1.});
+    return desc;
+  }
 
   void EPA::init(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range) {
     //--- define the kinematics ranges

@@ -68,8 +68,11 @@ namespace cepgen {
       PhotonMode igammd_;
       /// Human-readable format of a photon generation mode
       friend std::ostream& operator<<(std::ostream&, const PhotonMode&);
-      struct SlopeParameters {
-        SlopeParameters(const ParametersList& params);
+      struct SlopeParameters : SteeredObject<SlopeParameters> {
+        explicit SlopeParameters(const ParametersList& params);
+
+        static ParametersDescription description();
+
         /** \brief Slope parameter b of t distribution in GeV\f${}^{-2}\f$
            * * at CM energy \a wb0, and
            * * at mass \a amxb0 (for diffractive dissociation)
@@ -83,11 +86,14 @@ namespace cepgen {
         /// Power law exponent
         double anexp{0.};
       } slp_;
-      struct PomeronParameters {
-        PomeronParameters(const ParametersList& params);
+      struct PomeronParameters : SteeredObject<PomeronParameters> {
+        explicit PomeronParameters(const ParametersList&);
         /** \brief Intercept of pomeron trajectory minus 1
            * \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
            */
+
+        static ParametersDescription description();
+
         double epsilw{0.};
         /** \brief Intercept of pomeron trajectory minus 1
            * \note Controls \f$M_{X}\f$ spectrum
@@ -99,8 +105,11 @@ namespace cepgen {
         double alpha1{0.};
         double alpha1m{0.};
       } pom_;
-      struct VectorMesonParameters {
-        VectorMesonParameters(const ParametersList& params);
+      struct VectorMesonParameters : SteeredObject<VectorMesonParameters> {
+        explicit VectorMesonParameters(const ParametersList& params);
+
+        static ParametersDescription description();
+
         /** \brief Parameter for \f$Q^2\f$-dependence of cross section in GeV
            * \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
            */

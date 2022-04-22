@@ -4,28 +4,22 @@
 #include <array>
 #include <iosfwd>
 
+#include "CepGen/Core/SteeredObject.h"
 #include "CepGen/Physics/Momentum.h"
 #include "CepGen/Utils/Limits.h"
 
 namespace cepgen {
-  class ParametersList;
   /// \brief An Equivalent Photon Approximation calculator
   /// \author Benno List
   /// \author Thomas Jansen
   /// \date 1993-1995
-  class EPA {
+  class EPA : public SteeredObject<EPA> {
   public:
-    /// Photon generation mode
-    enum struct Mode {
-      wwa = 1,                      ///< WWA approximation (including e-mass effect and longitudinal flux). Recommended
-      transverse = 2,               ///< transverse spectrum
-      transverse_longitudinal = 3,  ///< transverse & longitudinal spectrum
-      transverse_longitudinal_pframe = 4  ///< as @a transverse_longitudinal, but flux in proton rest frame
-    };
-    friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
-
     /// Default constructor
     explicit EPA(const ParametersList&);
+
+    static ParametersDescription description();
+
     /// Output format for a given approximation
     struct Result {
       bool valid{false};
@@ -40,6 +34,15 @@ namespace cepgen {
       /// - \f$\pm\f$1: transverse polarization
       short heli{0};
     };
+
+    /// Photon generation mode
+    enum struct Mode {
+      wwa = 1,                      ///< WWA approximation (including e-mass effect and longitudinal flux). Recommended
+      transverse = 2,               ///< transverse spectrum
+      transverse_longitudinal = 3,  ///< transverse & longitudinal spectrum
+      transverse_longitudinal_pframe = 4  ///< as @a transverse_longitudinal, but flux in proton rest frame
+    };
+    friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
 
     /// Initialize histograms, constants, kinematical bounds
     void init(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range);
@@ -74,10 +77,10 @@ namespace cepgen {
     Momentum pel_;
     /// 5-vector of beam proton
     Momentum ppr_;
-    double s_, w12_, elpr_, eel_;
+    double s_{0.}, w12_{0.}, elpr_{0.}, eel_{0.};
     mutable std::array<unsigned int, 2> num_errors_;
     const std::array<unsigned int, 2> max_errors_;
-    mutable double epa_max_;
+    mutable double epa_max_{-1.};
   };
 }  // namespace cepgen
 

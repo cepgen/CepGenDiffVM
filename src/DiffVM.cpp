@@ -31,32 +31,14 @@ namespace cepgen {
   namespace proc {
     DiffVM::DiffVM(const ParametersList& params)
         : Process(params),
-          vm_pdgid_(params.get<ParticleProperties>("vmFlavour").pdgid),
-          ifragp_((BeamMode)params.get<int>("protonMode", (int)BeamMode::Elastic)),
-          ifragv_((BeamMode)params.get<int>("vmMode", (int)BeamMode::Elastic)),
-          igammd_((PhotonMode)params.get<int>("photonMode", (int)PhotonMode::WWA)),
-          slp_(params.get<ParametersList>("slopeParameters")),
-          pom_(params.get<ParametersList>("pomeronParameters")),
-          vm_(params.get<ParametersList>("vmParameters")),
-          epa_calc_(params.get<ParametersList>("epaParameters")) {}
-
-    DiffVM::SlopeParameters::SlopeParameters(const ParametersList& params)
-        : b0(params.get<double>("b0", 4.)),
-          wb0(params.get<double>("wb0", 95.)),
-          amxb0(params.get<double>("amxb0", 14.)),
-          anexp(params.get<double>("anexp", 0.)) {}
-
-    DiffVM::PomeronParameters::PomeronParameters(const ParametersList& params)
-        : epsilw(params.get<double>("epsilonW", 0.225)),
-          epsilm(params.get<double>("epsilonM", 0.0808)),
-          alpha1(params.get<double>("alpha1", 0.)),
-          alpha1m(params.get<double>("alpha1m", 0.)) {}
-
-    DiffVM::VectorMesonParameters::VectorMesonParameters(const ParametersList& params)
-        : lambda(params.get<double>("lambda", 0.)),
-          eprop(params.get<double>("eprop", 2.5)),
-          xi(params.get<double>("xi", 1.)),
-          chi(params.get<double>("chi", 1.)) {}
+          vm_pdgid_(steer<ParticleProperties>("vmFlavour").pdgid),
+          ifragp_(steerAs<int, BeamMode>("protonMode")),
+          ifragv_(steerAs<int, BeamMode>("vmMode")),
+          igammd_(steerAs<int, PhotonMode>("photonMode")),
+          slp_(steer<ParametersList>("slopeParameters")),
+          pom_(steer<ParametersList>("pomeronParameters")),
+          vm_(steer<ParametersList>("vmParameters")),
+          epa_calc_(steer<ParametersList>("epaParameters")) {}
 
     void DiffVM::prepareKinematics() {
       const Particle& ip2 = event_->oneWithRole(Particle::IncomingBeam2);
@@ -443,6 +425,58 @@ namespace cepgen {
           return os << "(WWA) A and S";
       }
       return os;
+    }
+
+    ParametersDescription DiffVM::description() {
+      auto desc = Process::description();
+      desc.setDescription("Diffractive vector meson production");
+      desc.add<int>("protonMode", (int)BeamMode::Elastic);
+      desc.add<int>("vmMode", (int)BeamMode::Elastic);
+      desc.add<int>("photonMode", (int)PhotonMode::WWA);
+      desc.add<ParametersDescription>("slopeParameters", SlopeParameters::description());
+      desc.add<ParametersDescription>("pomeronParameters", PomeronParameters::description());
+      desc.add<ParametersDescription>("vmParameters", VectorMesonParameters::description());
+      desc.add<ParametersDescription>("epaParameters", EPA::description());
+      return desc;
+    }
+
+    DiffVM::SlopeParameters::SlopeParameters(const ParametersList& params) : SteeredObject(params) {
+      (*this).add("b0", b0).add("wb0", wb0).add("amxb0", amxb0).add("anexp", anexp);
+    }
+
+    ParametersDescription DiffVM::SlopeParameters::description() {
+      auto desc = ParametersDescription();
+      desc.add<double>("b0", 4.);
+      desc.add<double>("wb0", 95.);
+      desc.add<double>("amxb0", 14.);
+      desc.add<double>("anexp", 0.);
+      return desc;
+    }
+
+    DiffVM::PomeronParameters::PomeronParameters(const ParametersList& params) : SteeredObject(params) {
+      (*this).add("epsilonW", epsilw).add("epsilonM", epsilm).add("alpha1", alpha1).add("alpha1m", alpha1m);
+    }
+
+    ParametersDescription DiffVM::PomeronParameters::description() {
+      auto desc = ParametersDescription();
+      desc.add<double>("epsilonW", 0.225);
+      desc.add<double>("epsilonM", 0.0808);
+      desc.add<double>("alpha1", 0.);
+      desc.add<double>("alpha1m", 0.);
+      return desc;
+    }
+
+    DiffVM::VectorMesonParameters::VectorMesonParameters(const ParametersList& params) : SteeredObject(params) {
+      (*this).add("lambda", lambda).add("eprop", eprop).add("xi", xi).add("chi", chi);
+    }
+
+    ParametersDescription DiffVM::VectorMesonParameters::description() {
+      auto desc = ParametersDescription();
+      desc.add<double>("lambda", 0.);
+      desc.add<double>("eprop", 2.5);
+      desc.add<double>("xi", 1.);
+      desc.add<double>("chi", 1.);
+      return desc;
     }
   }  // namespace proc
 }  // namespace cepgen
