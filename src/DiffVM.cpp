@@ -23,39 +23,211 @@
 #include "CepGen/Event/Event.h"
 #include "CepGen/Modules/ProcessFactory.h"
 #include "CepGen/Physics/BreitWigner.h"
+#include "CepGen/Physics/EPA.h"
 #include "CepGen/Physics/PDG.h"
 #include "CepGen/Physics/ParticleProperties.h"
-#include "CepGenProcesses/DiffVM.h"
+#include "CepGen/Process/Process.h"
 
 namespace cepgen {
   namespace proc {
-    DiffVM::DiffVM(const ParametersList& params)
-        : Process(params),
-          vm_pdgid_(steer<ParticleProperties>("vmFlavour").pdgid),
-          ifragp_(steerAs<int, BeamMode>("protonMode")),
-          ifragv_(steerAs<int, BeamMode>("vmMode")),
-          igammd_(steerAs<int, PhotonMode>("photonMode")),
-          slp_(steer<ParametersList>("slopeParameters")),
-          pom_(steer<ParametersList>("pomeronParameters")),
-          vm_(steer<ParametersList>("vmParameters")),
-          epa_calc_(steer<ParametersList>("epaParameters")) {}
+    /// Diffractive vector meson (photo)production as in DIFFVM \cite List:1998jz
+    class DiffVM : public Process {
+    public:
+      explicit DiffVM(const ParametersList& params)
+          : Process(params),
+            vm_pdgid_(steer<ParticleProperties>("vmFlavour").pdgid),
+            ifragp_(steerAs<int, BeamMode>("protonMode")),
+            ifragv_(steerAs<int, BeamMode>("vmMode")),
+            igammd_(steerAs<int, PhotonMode>("photonMode")),
+            slp_(steer<ParametersList>("slopeParameters")),
+            pom_(steer<ParametersList>("pomeronParameters")),
+            vm_(steer<ParametersList>("vmParameters")),
+            epa_calc_(steer<ParametersList>("epaParameters")) {}
+
+      ProcessPtr clone() const override { return ProcessPtr(new DiffVM(*this)); }
+
+      static ParametersDescription description() {
+        auto desc = Process::description();
+        desc.setDescription("Diffractive vector meson production");
+        desc.add<int>("protonMode", (int)BeamMode::Elastic);
+        desc.add<int>("vmMode", (int)BeamMode::Elastic);
+        desc.add<int>("photonMode", (int)PhotonMode::WWA);
+        desc.add<ParametersDescription>("slopeParameters", SlopeParameters::description());
+        desc.add<ParametersDescription>("pomeronParameters", PomeronParameters::description());
+        desc.add<ParametersDescription>("vmParameters", VectorMesonParameters::description());
+        desc.add<ParametersDescription>("epaParameters", EPA::description());
+        return desc;
+      }
+
+      void addEventContent() override {
+        Process::setEventContent({{Particle::Role::IncomingBeam1, {PDG::electron}},
+                                  {Particle::Role::IncomingBeam2, {PDG::proton}},
+                                  {Particle::Role::Parton1, {PDG::photon}},
+                                  {Particle::Role::Parton2, {PDG::pomeron}},
+                                  {Particle::Role::OutgoingBeam1, {PDG::electron}},
+                                  {Particle::Role::OutgoingBeam2, {PDG::proton}},
+                                  {Particle::Role::CentralSystem, {vm_pdgid_}}});
+      }
+      void prepareKinematics() override;
+      double computeWeight() override;
+      void fillKinematics() override;
+
+    private:
+      bool generatePhoton();
+      /// Compute the outgoing proton remnant mass
+      /// \param[in] x A (collection of) random number(s) (between 0 and 1)
+      /// \param[out] dw The size of the integration bin
+      /// \return Mass of the outgoing proton remnant
+      double outgoingPrimaryParticleMass(double x, double& y, bool treat) const;
+      /// Compute the single photon virtuality for this phase space point
+      /// \param[in] x Phase space point coordinate
+      /// \param[in] b
+      /// \return Photon virtuality, in \f${\rm GeV}^2\f$
+      double computeT(double x, double b) const;
+
+      // integration variables
+      double phi_var_{0.};
+      double t_var_{0.};
+      double pho_var_{0.};
+      double wwa_var_{0.};
+      double vm_var_{0.};
+      double difp_var_{0.};
+
+      /// Type of vector meson exchanged
+      spdgid_t vm_pdgid_;
+      /// Beam particles treatment mode
+      enum class BeamMode {
+        Elastic = 0,
+        GluonFragmentation = -1,
+        StandardFragmentation = 1,
+        NucleonPionsDecay = 2
+      } ifragp_,
+          ifragv_;
+      /// Photon generation mode
+      enum class PhotonMode { Fixed = -1, InvK = 0, WWA = 1, ABTSmith = 2, AandS = 3 } igammd_;
+      /// Human-readable format of a photon generation mode
+      friend std::ostream& operator<<(std::ostream& os, const PhotonMode& pm) {
+        switch (pm) {
+          case PhotonMode::Fixed:
+            return os << "fixed energy photon";
+          case PhotonMode::InvK:
+            return os << "1/k spectrum";
+          case PhotonMode::WWA:
+            return os << "(WWA) default";
+          case PhotonMode::ABTSmith:
+            return os << "(WWA) ABT & Smith";
+          case PhotonMode::AandS:
+            return os << "(WWA) A and S";
+        }
+        return os;
+      }
+      struct SlopeParameters : SteeredObject<SlopeParameters> {
+        explicit SlopeParameters(const ParametersList& params) : SteeredObject(params) {
+          (*this).add("b0", b0).add("wb0", wb0).add("amxb0", amxb0).add("anexp", anexp);
+        }
+        static ParametersDescription description() {
+          auto desc = ParametersDescription();
+          desc.add<double>("b0", 4.);
+          desc.add<double>("wb0", 95.);
+          desc.add<double>("amxb0", 14.);
+          desc.add<double>("anexp", 0.);
+          return desc;
+        }
+        /** \brief Slope parameter b of t distribution in GeV\f${}^{-2}\f$
+         * * at CM energy \a wb0, and
+         * * at mass \a amxb0 (for diffractive dissociation)
+         * \note Must be positive!
+         */
+        double b0{0.};
+        /// CM energy of \f$\gamma p\f$ system at which \f$b_0\f$ was measured, in GeV
+        double wb0{0.};
+        /// Mass of diffractively dissociating hadronic system for which \f$b_0\f$ was measured
+        double amxb0{0.};
+        /// Power law exponent
+        double anexp{0.};
+      } slp_;
+
+      struct PomeronParameters : SteeredObject<PomeronParameters> {
+        explicit PomeronParameters(const ParametersList& params) : SteeredObject(params) {
+          (*this).add("epsilonW", epsilw).add("epsilonM", epsilm).add("alpha1", alpha1).add("alpha1m", alpha1m);
+        }
+        static ParametersDescription description() {
+          auto desc = ParametersDescription();
+          desc.add<double>("epsilonW", 0.225);
+          desc.add<double>("epsilonM", 0.0808);
+          desc.add<double>("alpha1", 0.);
+          desc.add<double>("alpha1m", 0.);
+          return desc;
+        }
+        /// Intercept of pomeron trajectory minus 1
+        /// \note Controls rise of \f$\sigma_{\gamma p}\f$ with W
+        double epsilw{0.};
+        /// Intercept of pomeron trajectory minus 1
+        /// \note Controls \f$M_{X}\f$ spectrum
+        double epsilm{0.};
+        /// Slope alpha' of pomeron trajectory in GeV\f${}^{-2}\f$
+        /// \note Controls shrinkage of b slope
+        double alpha1{0.};
+        double alpha1m{0.};
+      } pom_;
+
+      struct VectorMesonParameters : SteeredObject<VectorMesonParameters> {
+        explicit VectorMesonParameters(const ParametersList& params) : SteeredObject(params) {
+          (*this).add("lambda", lambda).add("eprop", eprop).add("xi", xi).add("chi", chi);
+        }
+
+        static ParametersDescription description() {
+          auto desc = ParametersDescription();
+          desc.add<double>("lambda", 0.);
+          desc.add<double>("eprop", 2.5);
+          desc.add<double>("xi", 1.);
+          desc.add<double>("chi", 1.);
+          return desc;
+        }
+
+        /// Parameter for \f$Q^2\f$-dependence of cross section in GeV
+        /// \note \f$\sigma(Q^2)/\sigma(0) = 1 / \left(1 + Q^2/\Lambda^2\right)^{\rm eprop}\f$
+        double lambda{0.};
+        /// Propagator term exponent
+        double eprop{0.};
+        /** \brief Parameter for \f$Q^2\f$-dependence of \f$\sigma_L/\sigma_T\f$
+         * \note
+         *  * \f$\frac{\sigma_L(Q^2)}{\sigma_T(Q^2)}=\frac{\xi Q^2/m^2}{1+\xi\chi Q^2/m^2}\f$ where \f$\sigma_L/\sigma_T\to \xi Q^2/m^2\f$ for low-\f$Q^2\f$, and \f$\sigma_L/\sigma_T\to 1/\chi\f$ for high-\f$Q^2\f$ ;
+         *  * \f$\xi\f$ is assumed to be less than 4 (more precisely, it is assumed that \f$\sigma_L(Q^2)\f$ is always less than \f$\sigma_T(0)\f$).
+         */
+        double xi{0.};
+        /// Purely phenomenological parameter with no theoretical justification (see \a xi)
+        double chi{0.};
+      } vm_;
+      EPA epa_calc_;
+
+      double bmin_{0.};
+      double dmxv_{0.};
+      double min_pho_energy_{0.}, max_s_{0.};
+      double vm_mass_{0.}, vm_width_{0.};
+      std::shared_ptr<BreitWigner> vm_bw_;
+      double prop_mx_{0.};
+
+      Momentum p_gam_, p_gam_remn_;
+      Momentum p_cm_, p_pom_cm_, p_px_cm_, p_vm_cm_;
+    };
 
     void DiffVM::prepareKinematics() {
-      const Particle& ip2 = event_->oneWithRole(Particle::IncomingBeam2);
+      const Particle& ip2 = event_->oneWithRole(Particle::Role::IncomingBeam2);
       mY2_ = ip2.mass2();
 
       const auto& w_limits = kin_.cuts().central.mass_single;
       const auto& q2_limits = kin_.cuts().initial.q2;
 
       //--- variables mapping
-      defineVariable(
-          phi_var_, Mapping::linear, {0., 2. * M_PI}, {0., 2. * M_PI}, "phi");  //FIXME extra factor 2*pi, to be checked
+      defineVariable(phi_var_, Mapping::linear, {0., 2. * M_PI}, {0., 2. * M_PI}, "phi");
+      //FIXME extra factor 2*pi, to be checkedi
       defineVariable(t_var_, Mapping::linear, {0., 1.}, {0., 1.}, "Tvar");
       defineVariable(pho_var_, Mapping::linear, {0., 1.}, {0., 1.}, "PHOvar");
       defineVariable(difp_var_, Mapping::linear, {0., 1.}, {0., 1.}, "DPvar");
 
       if (igammd_ >= PhotonMode::WWA) {
-        const Particle& ip1 = event_->oneWithRole(Particle::IncomingBeam1);
+        const Particle& ip1 = event_->oneWithRole(Particle::Role::IncomingBeam1);
         epa_calc_.init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
         defineVariable(wwa_var_, Mapping::linear, {0., 1.}, {0., 1.}, "WWAvar");
       }
@@ -80,14 +252,14 @@ namespace cepgen {
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
-        vm_.lambda = (*event_)[Particle::CentralSystem][0].mass();
+        vm_.lambda = (*event_)[Particle::Role::CentralSystem][0].mass();
 
       const double q2_min = q2_limits.min();
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
-      const Particle& vm = (*event_)[Particle::CentralSystem][0];
+      const Particle& vm = (*event_)[Particle::Role::CentralSystem][0];
       vm_mass_ = vm.mass(), vm_width_ = PDG::get().width(vm.pdgId());
 
       //--- mass range for VM generation
@@ -107,16 +279,6 @@ namespace cepgen {
       vm_bw_.reset(new BreitWigner(vm_mass_, vm_width_, min_vm_mass, max_vm_mass));
     }
 
-    void DiffVM::addEventContent() {
-      GenericProcess::setEventContent({{Particle::IncomingBeam1, {PDG::electron}},
-                                       {Particle::IncomingBeam2, {PDG::proton}},
-                                       {Particle::Parton1, {PDG::photon}},
-                                       {Particle::Parton2, {PDG::pomeron}},
-                                       {Particle::OutgoingBeam1, {PDG::electron}},
-                                       {Particle::OutgoingBeam2, {PDG::proton}},
-                                       {Particle::CentralSystem, {vm_pdgid_}}});
-    }
-
     double DiffVM::computeWeight() {
       //================================================================
       // GENGAM
@@ -130,7 +292,7 @@ namespace cepgen {
         return 0.;
 
       //--- determine gamma*-p energy
-      p_cm_ = p_gam_ + event_->oneWithRole(Particle::IncomingBeam2).momentum();
+      p_cm_ = p_gam_ + event_->oneWithRole(Particle::Role::IncomingBeam2).momentum();
       mB2_ = p_cm_.energy2();
       const double w = sqrt(mB2_);
 
@@ -249,45 +411,45 @@ namespace cepgen {
       // pomeron is thought to be a quasireal particle emitted by
       // the proton and absorbed by the virtual vector meson
 
-      //std::cout << p_vmx_cm << std::endl;
+      //CG_LOG << p_vmx_cm;
       p_pom_cm_ = p_vm_cm_ - p_gam_;
 
       return weight;
     }
 
     void DiffVM::fillKinematics() {
-      (*event_)[Particle::Parton1][0].setMomentum(p_gam_);
-      (*event_)[Particle::OutgoingBeam1][0].setMomentum(p_gam_remn_);
+      (*event_)[Particle::Role::Parton1][0].setMomentum(p_gam_);
+      (*event_)[Particle::Role::OutgoingBeam1][0].setMomentum(p_gam_remn_);
 
-      auto& op_gam = event_->getOneByRole(Particle::OutgoingBeam1);
+      auto& op_gam = event_->getOneByRole(Particle::Role::OutgoingBeam1);
       op_gam.setMomentum(p_gam_remn_);
 
-      auto& pom = event_->getOneByRole(Particle::Parton2);
+      auto& pom = event_->getOneByRole(Particle::Role::Parton2);
       Momentum p_pom_lab = p_pom_cm_;
       p_pom_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::Parton2][0].setMomentum(p_pom_lab);
+      (*event_)[Particle::Role::Parton2][0].setMomentum(p_pom_lab);
 
-      auto& op_pom = event_->getOneByRole(Particle::OutgoingBeam2);
+      auto& op_pom = event_->getOneByRole(Particle::Role::OutgoingBeam2);
       Momentum p_px_lab = p_px_cm_;
       p_px_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::OutgoingBeam2][0].setMomentum(p_px_lab);
+      (*event_)[Particle::Role::OutgoingBeam2][0].setMomentum(p_px_lab);
 
-      (*event_)[Particle::Intermediate][0].setMomentum(p_gam_ + p_px_lab);
+      (*event_)[Particle::Role::Intermediate][0].setMomentum(p_gam_ + p_px_lab);
 
-      auto& vmx = event_->operator[](Particle::CentralSystem)[0];
+      auto& vmx = event_->operator[](Particle::Role::CentralSystem)[0];
       Momentum p_vm_lab = p_vm_cm_;
       p_vm_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::CentralSystem][0].setMomentum(p_vm_lab);
+      (*event_)[Particle::Role::CentralSystem][0].setMomentum(p_vm_lab);
     }
 
     bool DiffVM::generatePhoton() {
-      const Momentum p_ib = event_->oneWithRole(Particle::IncomingBeam1).momentum();
+      const auto& p_ib = event_->oneWithRole(Particle::Role::IncomingBeam1).momentum();
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
           const double e_gamma = 3.;  // in steering card
           const double y = e_gamma / p_ib.energy();
           p_gam_ = y * p_ib;
-          //p_gam_.setMass( -sqrt( fabs( p_ib.mass2()*y*y/( 1.-y ) ) ) );
+          //p_gam_.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
           return true;
@@ -300,7 +462,7 @@ namespace cepgen {
           p_gam_ = r * p_ib;
           p_gam_remn_ = p_ib - p_gam_;
           p_gam_remn_.setMass(p_ib.mass());
-          //          std::cout << min_pho_energy_ << "/" << e_max << "->" << p_ib.mass() << std::endl;
+          //CG_LOG << min_pho_energy_ << "/" << e_max << "->" << p_ib.mass();
           return true;
         } break;
         case PhotonMode::WWA:
@@ -409,74 +571,6 @@ namespace cepgen {
       CG_DEBUG_LOOP("DiffVM:t") << "x=" << x << ", c0=" << c0 << ", c1=" << c1 << ", anexp=" << slp_.anexp
                                 << ", bloc=" << bloc << ", t=" << t;
       return t;
-    }
-
-    std::ostream& operator<<(std::ostream& os, const DiffVM::PhotonMode& mode) {
-      switch (mode) {
-        case DiffVM::PhotonMode::Fixed:
-          return os << "fixed energy photon";
-        case DiffVM::PhotonMode::InvK:
-          return os << "1/k spectrum";
-        case DiffVM::PhotonMode::WWA:
-          return os << "(WWA) default";
-        case DiffVM::PhotonMode::ABTSmith:
-          return os << "(WWA) ABT & Smith";
-        case DiffVM::PhotonMode::AandS:
-          return os << "(WWA) A and S";
-      }
-      return os;
-    }
-
-    ParametersDescription DiffVM::description() {
-      auto desc = Process::description();
-      desc.setDescription("Diffractive vector meson production");
-      desc.add<int>("protonMode", (int)BeamMode::Elastic);
-      desc.add<int>("vmMode", (int)BeamMode::Elastic);
-      desc.add<int>("photonMode", (int)PhotonMode::WWA);
-      desc.add<ParametersDescription>("slopeParameters", SlopeParameters::description());
-      desc.add<ParametersDescription>("pomeronParameters", PomeronParameters::description());
-      desc.add<ParametersDescription>("vmParameters", VectorMesonParameters::description());
-      desc.add<ParametersDescription>("epaParameters", EPA::description());
-      return desc;
-    }
-
-    DiffVM::SlopeParameters::SlopeParameters(const ParametersList& params) : SteeredObject(params) {
-      (*this).add("b0", b0).add("wb0", wb0).add("amxb0", amxb0).add("anexp", anexp);
-    }
-
-    ParametersDescription DiffVM::SlopeParameters::description() {
-      auto desc = ParametersDescription();
-      desc.add<double>("b0", 4.);
-      desc.add<double>("wb0", 95.);
-      desc.add<double>("amxb0", 14.);
-      desc.add<double>("anexp", 0.);
-      return desc;
-    }
-
-    DiffVM::PomeronParameters::PomeronParameters(const ParametersList& params) : SteeredObject(params) {
-      (*this).add("epsilonW", epsilw).add("epsilonM", epsilm).add("alpha1", alpha1).add("alpha1m", alpha1m);
-    }
-
-    ParametersDescription DiffVM::PomeronParameters::description() {
-      auto desc = ParametersDescription();
-      desc.add<double>("epsilonW", 0.225);
-      desc.add<double>("epsilonM", 0.0808);
-      desc.add<double>("alpha1", 0.);
-      desc.add<double>("alpha1m", 0.);
-      return desc;
-    }
-
-    DiffVM::VectorMesonParameters::VectorMesonParameters(const ParametersList& params) : SteeredObject(params) {
-      (*this).add("lambda", lambda).add("eprop", eprop).add("xi", xi).add("chi", chi);
-    }
-
-    ParametersDescription DiffVM::VectorMesonParameters::description() {
-      auto desc = ParametersDescription();
-      desc.add<double>("lambda", 0.);
-      desc.add<double>("eprop", 2.5);
-      desc.add<double>("xi", 1.);
-      desc.add<double>("chi", 1.);
-      return desc;
     }
   }  // namespace proc
 }  // namespace cepgen

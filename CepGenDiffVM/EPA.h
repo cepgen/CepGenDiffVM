@@ -1,3 +1,21 @@
+/*
+ *  CepGen: a central exclusive processes event generator
+ *  Copyright (C) 2017-2021  Laurent Forthomme
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef CepGenDiffVM_EPA_h
 #define CepGenDiffVM_EPA_h
 
@@ -71,15 +89,17 @@ namespace cepgen {
     short helicity(double longfr) const;
     /// alpha/2pi
     static const double ALPHARED;
-    Mode mode_;
-    Limits y_range_, q2_range_, w_range_, dy_range_;
+    const Mode mode_;
+    const Limits y_range_;
+    Limits dy_range_;
+    Limits q2_range_, w_range_;
     /// 5-vector of beam electron
     Momentum pel_;
     /// 5-vector of beam proton
     Momentum ppr_;
     double s_{0.}, w12_{0.}, elpr_{0.}, eel_{0.};
-    mutable std::array<unsigned int, 2> num_errors_;
-    const std::array<unsigned int, 2> max_errors_;
+    mutable std::array<unsigned int, 2> num_errors_{0, 0};
+    const std::array<unsigned int, 2> max_errors_{10, 500};
     mutable double epa_max_{-1.};
   };
 }  // namespace cepgen

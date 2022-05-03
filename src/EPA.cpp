@@ -1,3 +1,21 @@
+/*
+ *  CepGen: a central exclusive processes event generator
+ *  Copyright (C) 2017-2021  Laurent Forthomme
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <iostream>
 
 #include <CepGen/Core/Exception.h>
@@ -12,9 +30,7 @@ namespace cepgen {
       : SteeredObject(params),
         mode_(steerAs<int, Mode>("mode")),
         y_range_(steer<Limits>("yRange")),
-        dy_range_(steer<Limits>("dyRange")),
-        num_errors_({{0, 0}}),
-        max_errors_({10, 500}) {}
+        dy_range_(steer<Limits>("dyRange")) {}
 
   ParametersDescription EPA::description() {
     auto desc = ParametersDescription();
