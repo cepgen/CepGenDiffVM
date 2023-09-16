@@ -45,7 +45,7 @@ process = cepgen.Module('diffvm',
         mx = (1.07, 1000.),
     ),
 )
-print process.processParameters
+print(process.processParameters)
 
 generator = _gen.clone(
     numEvents = 25000,

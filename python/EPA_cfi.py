@@ -1,4 +1,5 @@
-from containers_cfi import Parameters
+from .containers_cff import Parameters
+
 
 class EPAMode:
     WWA        = 1

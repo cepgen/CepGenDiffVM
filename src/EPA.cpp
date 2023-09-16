@@ -54,7 +54,7 @@ namespace cepgen {
                         << "Q² range: " << q2_range_ << " GeV².";
 
     //--- calculate CMS s=(P+K)²
-    const double sqrt_s = CMEnergy(pel_, ppr_);
+    const double sqrt_s = (pel_ + ppr_).mass();
     s_ = sqrt_s * sqrt_s;
     elpr_ = 0.5 * (s_ - pel_.mass2() - ppr_.mass2());
     if (mode_ == Mode::transverse_longitudinal_pframe)

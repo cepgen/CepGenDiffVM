@@ -213,23 +213,20 @@ namespace cepgen {
     };
 
     void DiffVM::prepareKinematics() {
-      const Particle& ip2 = event_->oneWithRole(Particle::Role::IncomingBeam2);
-      mY2_ = ip2.mass2();
+      mY2() = pB().mass2();
 
-      const auto& w_limits = kin_.cuts().central.mass_single;
-      const auto& q2_limits = kin_.cuts().initial.q2;
+      const auto& w_limits = kinematics().cuts().central.mass_single;
 
       //--- variables mapping
-      defineVariable(phi_var_, Mapping::linear, {0., 2. * M_PI}, {0., 2. * M_PI}, "phi");
+      defineVariable(phi_var_, Mapping::linear, {0., 2. * M_PI}, "phi");
       //FIXME extra factor 2*pi, to be checkedi
-      defineVariable(t_var_, Mapping::linear, {0., 1.}, {0., 1.}, "Tvar");
-      defineVariable(pho_var_, Mapping::linear, {0., 1.}, {0., 1.}, "PHOvar");
-      defineVariable(difp_var_, Mapping::linear, {0., 1.}, {0., 1.}, "DPvar");
+      defineVariable(t_var_, Mapping::linear, {0., 1.}, "Tvar");
+      defineVariable(pho_var_, Mapping::linear, {0., 1.}, "PHOvar");
+      defineVariable(difp_var_, Mapping::linear, {0., 1.}, "DPvar");
 
       if (igammd_ >= PhotonMode::WWA) {
-        const Particle& ip1 = event_->oneWithRole(Particle::Role::IncomingBeam1);
-        epa_calc_.init(ip1.momentum(), ip2.momentum(), q2_limits, w_limits);
-        defineVariable(wwa_var_, Mapping::linear, {0., 1.}, {0., 1.}, "WWAvar");
+        epa_calc_.init(pA(), pB(), kinematics().cuts().initial.q2.at(0), w_limits);
+        defineVariable(wwa_var_, Mapping::linear, {0., 1.}, "WWAvar");
       }
 
       if (ifragp_ == BeamMode::Elastic) {
@@ -241,39 +238,39 @@ namespace cepgen {
         if (ifragv_ == BeamMode::Elastic)
           bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(slp_.amxb0 / slp_.wb0);
         else {
-          bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(4. * pow(slp_.amxb0, 2) / (slp_.wb0 * sqs_));
-          defineVariable(vm_var_, Mapping::linear, {0., 1.}, {0., 1.}, "VMvar");
+          bmin_ = slp_.b0 + 4. * pom_.alpha1 * log(4. * pow(slp_.amxb0, 2) / (slp_.wb0 * sqrtS()));
+          defineVariable(vm_var_, Mapping::linear, {0., 1.}, "VMvar");
         }
       }
       bmin_ = std::max(bmin_, 0.5);
       CG_DEBUG("DiffVM") << "Minimum b slope: " << bmin_ << ".";
 
-      min_pho_energy_ = 0.25 * pow(w_limits.min(), 2) / ip2.momentum().p();
+      min_pho_energy_ = 0.25 * pow(w_limits.min(), 2) / pB().p();
       max_s_ = pow(w_limits.max(), 2);
 
       if (vm_.lambda <= 0.)
-        vm_.lambda = (*event_)[Particle::Role::CentralSystem][0].mass();
+        vm_.lambda = event().oneWithRole(Particle::Role::CentralSystem).momentum().mass();
 
-      const double q2_min = q2_limits.min();
+      const double q2_min = kinematics().cuts().initial.q2.at(0).min();
       prop_mx_ = std::max(1.,
                           vm_.xi * q2_min / (pow(vm_.lambda, 2) + vm_.xi * vm_.chi * q2_min) /
                               pow(1. + q2_min / pow(vm_.lambda, 2), vm_.eprop));
 
-      const Particle& vm = (*event_)[Particle::Role::CentralSystem][0];
-      vm_mass_ = vm.mass(), vm_width_ = PDG::get().width(vm.pdgId());
+      const Particle& vm = event()(Particle::Role::CentralSystem)[0];
+      vm_mass_ = vm.momentum().mass(), vm_width_ = PDG::get().width(vm.pdgId());
 
       //--- mass range for VM generation
       double min_vm_mass = -1., max_vm_mass = -1.;
-      const auto& invm_limits = kin_.cuts().central.mass_sum;
+      const auto& invm_limits = kinematics().cuts().central.mass_sum;
       if (invm_limits.valid()) {
         min_vm_mass = invm_limits.min();
         max_vm_mass = invm_limits.max();
       } else {
         min_vm_mass = vm_mass_ - 3. * vm_width_;
         max_vm_mass = vm_mass_ + 10. * vm_width_;
-        if (vm.pdgId() == PDG::rho1450_0 || vm.pdgId() == PDG::rho1700_0)
+        if (vm.pdgId() == 100113 /*rho1450_0*/ || vm.pdgId() == 30113 /*rho1700_0*/)
           min_vm_mass = std::max(min_vm_mass, 1.2);
-        else if (vm.pdgId() == PDG::h1380_1)
+        else if (vm.pdgId() == 10333 /*h1380_1*/)
           min_vm_mass = std::max(min_vm_mass, 1.4);
       }
       vm_bw_.reset(new BreitWigner(vm_mass_, vm_width_, min_vm_mass, max_vm_mass));
@@ -288,13 +285,12 @@ namespace cepgen {
         return 0.;
 
       const double q2 = p_gam_.mass2();
-      if (!kin_.cuts().initial.q2.contains(q2))
+      if (!kinematics().cuts().initial.q2.at(0).contains(q2))
         return 0.;
 
       //--- determine gamma*-p energy
-      p_cm_ = p_gam_ + event_->oneWithRole(Particle::Role::IncomingBeam2).momentum();
-      mB2_ = p_cm_.energy2();
-      const double w = sqrt(mB2_);
+      p_cm_ = p_gam_ + pB();
+      const auto mb2 = p_cm_.energy2(), mb = p_cm_.energy();
 
       double weight = 1.;
 
@@ -302,13 +298,13 @@ namespace cepgen {
       weight /= pow(1. + q2 / pow(vm_.lambda, 2), vm_.eprop);
 
       //      const double drlt = vm_.xi*q2/( pow( vm_.lambda, 2 )+vm_.xi*vm_.chi*q2 );
-      weight *= pow(mB2_ / max_s_, 2. * pom_.epsilw) / prop_mx_;
+      weight *= pow(mb2 / max_s_, 2. * pom_.epsilw) / prop_mx_;
 
       //================================================================
       // GENMXT
       //================================================================
 
-      double dum = 0.;
+      double mY = 0., dum = 0.;
       //--- vector meson mass
       switch (ifragv_) {
         case BeamMode::Elastic:
@@ -325,22 +321,22 @@ namespace cepgen {
         case BeamMode::Elastic:
           break;
         default:
-          mY = pow(outgoingPrimaryParticleMass(difp_var_, dum, true), 2);
+          mY = outgoingPrimaryParticleMass(difp_var_, dum, true);
           break;
       }
       if (mY <= 0.)
         return 0.;
 
       //--- return if generated masses are bigger than CM energy
-      if (mY + dmxv_ > w - 0.1)
+      if (mY + dmxv_ > mb - 0.1)
         return 0.;
 
-      mY2_ = mY * mY;
+      mY2() = mY * mY;
 
       //--- calculate slope parameter b
       // generate t with e**(b*t) distribution
 
-      double b = slp_.b0 + 4. * pom_.alpha1 * log(w / slp_.wb0);
+      double b = slp_.b0 + 4. * pom_.alpha1 * log(mb / slp_.wb0);
       if (ifragp_ != BeamMode::Elastic)
         b -= 4. * pom_.alpha1m * log(mY / slp_.amxb0);
       if (ifragv_ != BeamMode::Elastic)
@@ -359,11 +355,11 @@ namespace cepgen {
       // 1: gamma, 2: p, 3: VM(+X), 4: p remnant
       // The formula for Pcm1 is altered to take the imaginary photon mass into account.
 
-      const double inv_w = 1. / w;
-      const double pcm1 = 0.5 * sqrt(pow(mB2_ + q2 - mp2_, 2) + 4. * q2 * mp2_) * inv_w;
-      const double p_out = 0.5 * sqrt((mB2_ - pow(dmxv_ + mY, 2)) * (mB2_ - pow(dmxv_ - mY, 2))) * inv_w;  // pcm3
+      const double inv_w = 1. / mb;
+      const double pcm1 = 0.5 * sqrt(pow(mb2 + q2 - mp2_, 2) + 4. * q2 * mp2_) * inv_w;
+      const double p_out = 0.5 * sqrt((mb2 - pow(dmxv_ + mY, 2)) * (mb2 - pow(dmxv_ - mY, 2))) * inv_w;  // pcm3
       const double t_mean =
-          0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - mY2_) * inv_w * inv_w + mB2_ + q2 - mp2_ - dmxv_ * dmxv_ - mY2_);
+          0.5 * ((-q2 - mp2_) * (dmxv_ * dmxv_ - mY2()) * inv_w * inv_w + mb2 + q2 - mp2_ - dmxv_ * dmxv_ - mY2());
       const double t_min = t_mean - 2. * pcm1 * p_out, t_max = t_mean + 2. * pcm1 * p_out;
       if (t < t_min || t > t_max)
         return 0.;
@@ -418,51 +414,34 @@ namespace cepgen {
     }
 
     void DiffVM::fillKinematics() {
-      (*event_)[Particle::Role::Parton1][0].setMomentum(p_gam_);
-      (*event_)[Particle::Role::OutgoingBeam1][0].setMomentum(p_gam_remn_);
-
-      auto& op_gam = event_->getOneByRole(Particle::Role::OutgoingBeam1);
-      op_gam.setMomentum(p_gam_remn_);
-
-      auto& pom = event_->getOneByRole(Particle::Role::Parton2);
-      Momentum p_pom_lab = p_pom_cm_;
-      p_pom_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::Role::Parton2][0].setMomentum(p_pom_lab);
-
-      auto& op_pom = event_->getOneByRole(Particle::Role::OutgoingBeam2);
-      Momentum p_px_lab = p_px_cm_;
-      p_px_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::Role::OutgoingBeam2][0].setMomentum(p_px_lab);
-
-      (*event_)[Particle::Role::Intermediate][0].setMomentum(p_gam_ + p_px_lab);
-
-      auto& vmx = event_->operator[](Particle::Role::CentralSystem)[0];
-      Momentum p_vm_lab = p_vm_cm_;
-      p_vm_lab.lorentzBoost(-p_cm_);
-      (*event_)[Particle::Role::CentralSystem][0].setMomentum(p_vm_lab);
+      q1() = p_gam_;
+      pX() = p_gam_remn_;
+      q2() = Momentum(p_pom_cm_).lorentzBoost(-p_cm_);
+      pY() = Momentum(p_px_cm_).lorentzBoost(-p_cm_);
+      event().oneWithRole(Particle::Role::Intermediate).setMomentum(q1() + q2());
+      event().oneWithRole(Particle::Role::CentralSystem).setMomentum(Momentum(p_vm_cm_).lorentzBoost(-p_cm_));
     }
 
     bool DiffVM::generatePhoton() {
-      const auto& p_ib = event_->oneWithRole(Particle::Role::IncomingBeam1).momentum();
       switch (igammd_) {
         case PhotonMode::Fixed: {     // fixphot
           const double e_gamma = 3.;  // in steering card
-          const double y = e_gamma / p_ib.energy();
-          p_gam_ = y * p_ib;
-          //p_gam_.setMass(-sqrt(fabs(p_ib.mass2() * y * y / (1. - y))));
-          p_gam_remn_ = p_ib - p_gam_;
-          p_gam_remn_.setMass(p_ib.mass());
+          const double y = e_gamma / pA().energy();
+          p_gam_ = y * pA();
+          //p_gam_.setMass(-sqrt(fabs(pA().mass2() * y * y / (1. - y))));
+          p_gam_remn_ = pA() - p_gam_;
+          p_gam_remn_.setMass(pA().mass());
           return true;
         } break;
         case PhotonMode::InvK: {  // genphot
-          const double e_max = p_ib.p();
+          const double e_max = pA().p();
           const double r = exp(pho_var_ * log(min_pho_energy_ / e_max));
           if (r >= 1.)
             CG_WARNING("DiffVM:photon") << "r=" << r << " > 1.";
-          p_gam_ = r * p_ib;
-          p_gam_remn_ = p_ib - p_gam_;
-          p_gam_remn_.setMass(p_ib.mass());
-          //CG_LOG << min_pho_energy_ << "/" << e_max << "->" << p_ib.mass();
+          p_gam_ = r * pA();
+          p_gam_remn_ = pA() - p_gam_;
+          p_gam_remn_.setMass(pA().mass());
+          //CG_LOG << min_pho_energy_ << "/" << e_max << "->" << pA().mass();
           return true;
         } break;
         case PhotonMode::WWA:
@@ -481,27 +460,17 @@ namespace cepgen {
     }
 
     double DiffVM::outgoingPrimaryParticleMass(double x, double& y, bool treat) const {
-      const auto& m_range = kin_.cuts().remnants.mx;
+      const auto& m_range = kinematics().cuts().remnants.mx;
       double m = 0.;
-      if (fabs(pom_.epsilm) < 1.e-3) {
-        //--- basic spectrum: 1/M^2
-        const double lmin = 2. * log(m_range.min());
-        const double delta = 2. * log(m_range.max() / m_range.min());
-        m = sqrt(exp(x * delta + lmin));
-      } else {
+      if (fabs(pom_.epsilm) < 1.e-3)
+        m = m_range.min() * std::pow(m_range.max() / m_range.min(), x);  // basic spectrum: 1/M^2
+      else {
         //--- basic spectrum: 1/M^2(1+epsilon)
-        const double m2min = pow(m_range.min(), -2. * pom_.epsilm);
-        const double fact = pow(m_range.max(), -2. * pom_.epsilm) - m2min;
-        m = sqrt(pow(fact * x + m2min, -1. / pom_.epsilm));
+        const double m2min = std::pow(m_range.min(), -2. * pom_.epsilm);
+        const double fact = std::pow(m_range.max(), -2. * pom_.epsilm) - m2min;
+        m = std::sqrt(std::pow(fact * x + m2min, -1. / pom_.epsilm));
       }
-      if (m < m_range.min()) {
-        CG_ERROR("DiffVM:mass") << "M=" << m << " < minimum mass=" << m_range.min() << " GeV.";
-        return m_range.min();
-      }
-      if (m > m_range.max()) {
-        CG_ERROR("DiffVM:mass") << "M=" << m << " > maximum mass=" << m_range.max() << " GeV.";
-        return m_range.max();
-      }
+      m = m_range.trim(m);
       if (!treat)
         return m;
 
@@ -535,9 +504,7 @@ namespace cepgen {
     }
 
     double DiffVM::computeT(double x, double b) const {
-      const auto& t_range = kin_.cuts().initial.q2();
-      const double t_min = t_range.min(), t_max = t_range.max();
-
+      const auto& t_range = kinematics().cuts().initial.q2.at(0);
       double bloc = b;
 
       //--- generate spectrum by method of R. Lausen
@@ -548,28 +515,29 @@ namespace cepgen {
         CG_WARNING("DiffVM:t") << "b = " << b << " < 0.1.";
         bloc = 0.1;
       }
-      if (t_min >= t_max) {
-        CG_ERROR("DiffVM:t") << "t range: " << t_range << "=> return " << t_min << ".";
-        return t_min;
+      if (!t_range.valid()) {
+        CG_ERROR("DiffVM:t") << "t range: " << t_range << "=> return " << t_range.min() << ".";
+        return t_range.min();
       }
 
       if (slp_.anexp < 1.) {
         // power law exponent is 0 or illegal => generate pure exp(bt) spectrum
-        if (bloc * (t_max - t_min) >= 25.)  // method 1
-          return t_min - log(x) / bloc;
+        if (bloc * t_range.range() >= 25.)  // method 1
+          return t_range.min() - std::log(x) / bloc;
         // method 2
-        return t_min - log(1. - x * (1. - exp(bloc * (t_min - t_max)))) / bloc;
+        return t_range.min() - std::log(1. - x * (1. - std::exp(bloc * t_range.range()))) / bloc;
       }
       //--- new 16.5.07 BL:
       // Generate mixed exp(bt)/power law spectrum
       // d sigma/d t = exp (-n*ln(-bt/n+1)) = (-bt/n+1)^-n
       // Limit for small bt: exp (bt + c t^2) with c=b^2/2n
       // Limit for large bt>>n: t^-n
-      const double c1 = pow(slp_.anexp + bloc * t_min, 1. - slp_.anexp);
-      const double c0 = pow(slp_.anexp + bloc * t_max, 1. - slp_.anexp);
-      const double t = -(slp_.anexp - pow(x * (c1 - c0) + c0, 1. / (1. - slp_.anexp))) / bloc;
-      CG_DEBUG_LOOP("DiffVM:t") << "x=" << x << ", c0=" << c0 << ", c1=" << c1 << ", anexp=" << slp_.anexp
-                                << ", bloc=" << bloc << ", t=" << t;
+      const auto expo = 1. - slp_.anexp;
+      const auto c_range =
+          (t_range * bloc + slp_.anexp).compute([&expo](double ext) -> double { return std::pow(ext, expo); });
+      const double t = -(slp_.anexp - std::pow(c_range.x(x), 1. / (1. - slp_.anexp))) / bloc;
+      CG_DEBUG_LOOP("DiffVM:t") << "x=" << x << ", c range=" << c_range << ", anexp=" << slp_.anexp << ", bloc=" << bloc
+                                << ", t=" << t;
       return t;
     }
   }  // namespace proc

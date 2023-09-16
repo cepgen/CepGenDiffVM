@@ -1,6 +1,7 @@
-from containers_cfi import Module, Parameters
-from ProcessMode_cfi import ProcessMode
-from PDG_cfi import PDG
+from .containers_cff import Module, Parameters
+from .ProcessMode_cff import ProcessMode
+from .PDG_cfi import PDG
+
 
 class BeamMode:
     '''Beam particles treatment mode'''
