@@ -19,12 +19,12 @@
 #ifndef CepGenDiffVM_EPA_h
 #define CepGenDiffVM_EPA_h
 
+#include <CepGen/Core/SteeredObject.h>
+#include <CepGen/Physics/Momentum.h>
+#include <CepGen/Utils/Limits.h>
+
 #include <array>
 #include <iosfwd>
-
-#include "CepGen/Core/SteeredObject.h"
-#include "CepGen/Physics/Momentum.h"
-#include "CepGen/Utils/Limits.h"
 
 namespace cepgen {
   /// \brief An Equivalent Photon Approximation calculator
@@ -41,12 +41,9 @@ namespace cepgen {
     /// Output format for a given approximation
     struct Result {
       bool valid{false};
-      /// 5-vector of photon in laboratory system (5th component is \f${\rm sign}(q^2)\cdot\sqrt{|q^2|}\f$)
-      Momentum pph;
-      /// 5-vector of scattered electron
-      Momentum ppe;
-      /// Virtuality of photon (positive!): \f$Q^2 = -q^2\f$
-      double q2{0.};
+      Momentum pph;   ///< 5-vector of photon in lab system (5th component is \f${\rm sign}(q^2)\cdot\sqrt{|q^2|}\f$)
+      Momentum ppe;   ///< 5-vector of scattered electron
+      double q2{0.};  ///< Virtuality of photon (positive!): \f$Q^2 = -q^2\f$
       /// Photon helicity:
       /// - 0: longitudinal,
       /// - \f$\pm\f$1: transverse polarization

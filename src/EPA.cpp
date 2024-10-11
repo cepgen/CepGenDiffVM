@@ -117,27 +117,27 @@ namespace cepgen {
     CG_DEBUG("EPA:init") << "maximal EPA: " << epa_max_;
   }
 
-  EPA::Result EPA::operator()(double x_y, double x_q2) const {
+  EPA::Result EPA::operator()(double y, double q2) const {
     Result out;
 
     const double dy_min = dy_range_.min(), dy_max = dy_range_.max();
 
     //--- produce Y spect. ( 1/y weighted shape )
-    const double y = dy_min * pow(dy_max / dy_min, x_y);
+    const double y_weighted = dy_min * pow(dy_max / dy_min, y);
     //--- calculate actual Q2_min, Q2_max from Y
-    const double gq2_min = std::max(pel_.mass2() * y * y / (1. - y), q2_range_.min());
-    const double gq2_max = std::min(y * s_, q2_range_.max());
+    const double gq2_min = std::max(pel_.mass2() * y_weighted * y_weighted / (1. - y_weighted), q2_range_.min());
+    const double gq2_max = std::min(y_weighted * s_, q2_range_.max());
     const Limits gq2_range(gq2_min, gq2_max);
     //--- take Q2_cut from steering, if it is kinematicly reachable.
     if (!gq2_range.valid())
       return out;
 
-    CG_DEBUG("EPA:get") << "Y, Q2min, Q2max: " << y << ", " << gq2_range << ".";
+    CG_DEBUG("EPA:get") << "Y, Q2min, Q2max: " << y_weighted << ", " << gq2_range << ".";
 
     double epa = 0., epa_t = 0., epa_l = 0., l_frac = 0.;
 
     //--- produce Q2 spect. (1/x weighted shape )
-    const double q2 = gq2_min * pow(gq2_max / gq2_min, x_q2);
+    const double q2_weighted = gq2_min * pow(gq2_max / gq2_min, q2);
 
     //------------------------------------------------------------------
     // EPA - WWA spectrum
@@ -146,9 +146,11 @@ namespace cepgen {
     //--- compute photon weight
     if (mode_ == Mode::wwa) {
       //--- WWA - approximation
-      const double r = ALPHARED / (y * q2);
-      epa_t = r * (2. * (1. - y) * (1. - pel_.mass2() * y * y / ((1. - y) * q2)) + y * y);
-      epa_l = r * (2. * (1. - y));
+      const double r = ALPHARED / (y_weighted * q2_weighted);
+      epa_t = r * (2. * (1. - y_weighted) *
+                       (1. - pel_.mass2() * y_weighted * y_weighted / ((1. - y_weighted) * q2_weighted)) +
+                   y_weighted * y_weighted);
+      epa_l = r * (2. * (1. - y_weighted));
       epa = epa_t + epa_l;
       l_frac = epa_l / epa;
     } else {
@@ -163,9 +165,10 @@ namespace cepgen {
       // * SMITH, J.R. (1993): Polarization Decomposition of Fluxes
       //    and Kinematics in ep Reactions. - H1-04/93-282.
       //----------------------------------------------------------------
-      const double eqe = q2 / eel_ / eel_;
-      const double emqe2 = pow(y - 0.25 * eqe, 2);
-      const double emsqr = (pow(y * elpr_, 2) + q2 * ppr_.mass2()) / (elpr_ * elpr_ + pel_.mass2() * ppr_.mass2());
+      const double eqe = q2_weighted / eel_ / eel_;
+      const double emqe2 = pow(y_weighted - 0.25 * eqe, 2);
+      const double emsqr =
+          (pow(y_weighted * elpr_, 2) + q2_weighted * ppr_.mass2()) / (elpr_ * elpr_ + pel_.mass2() * ppr_.mass2());
 
       if (emsqr < 0.) {
         CG_WARNING("EPA:get") << "problem with sqrt(emsqr) = " << emsqr << ": "
@@ -175,17 +178,17 @@ namespace cepgen {
                                     << "sqrt(emsqr) definition!\n\tTry WWA...";
       }
 
-      const double r = ALPHARED / q2 * sqrt(emsqr) / (emqe2 + eqe);
-      epa_t = r * (2. * (1. - y) + emqe2 + eqe);
-      epa_l = (mode_ == Mode::transverse) ? 0. : r * (2. * (1. - y));  // longitudinal & transversal spectrum
+      const double r = ALPHARED / q2_weighted * sqrt(emsqr) / (emqe2 + eqe);
+      epa_t = r * (2. * (1. - y_weighted) + emqe2 + eqe);
+      epa_l = (mode_ == Mode::transverse) ? 0. : r * (2. * (1. - y_weighted));  // longitudinal & transversal spectrum
     }
 
     epa = epa_t + epa_l;
     l_frac = epa_l / epa;
 
     //--- unweight MC
-    double r = y * q2 * log(dy_max / dy_min) * log(gq2_max / gq2_min);
-    const double w = sqrt(y * 2. * elpr_ - q2 + ppr_.mass2());
+    double r = y_weighted * q2_weighted * log(dy_max / dy_min) * log(gq2_max / gq2_min);
+    const double w = sqrt(y_weighted * 2. * elpr_ - q2_weighted + ppr_.mass2());
     //--- check if W_min < W < W_max, else reject photon
     if (!w_range_.contains(w))
       r = 0.;
@@ -205,7 +208,7 @@ namespace cepgen {
       CG_INFO("EPA:get") << "update of maximal weight: " << epa_max_ << ".";
     }
 
-    CG_DEBUG_LOOP("EPA:get") << "Y: " << y << ", Q²: " << q2 << "\n\t"
+    CG_DEBUG_LOOP("EPA:get") << "Y: " << y_weighted << ", Q²: " << q2_weighted << "\n\t"
                              << "EPA(T): " << epa_t << ", EPA(L): " << epa_l << "\n\t"
                              << "EPA: " << epa << ", long.fraction: " << l_frac << "\n\t"
                              << "GQ2 range: " << gq2_range << ".";
@@ -220,7 +223,7 @@ namespace cepgen {
     // x = Q2 / (y s)
     // E_sc = E_e(1-y) + E_p x y
     // cos t = [E_e(1-y) - E_p x y] / E_sc
-    const double emy = pel_.energy() * (1. - y), exy = ppr_.energy() * q2 / s_;
+    const double emy = pel_.energy() * (1. - y), exy = ppr_.energy() * q2_weighted / s_;
     const double eesc = emy + exy;
     //const double cthe = ( emy-exy )/eesc, sthe = 2.*sqrt( emy-exy )/eesc;
     const double theta = acos((emy - exy) / eesc);
@@ -229,7 +232,7 @@ namespace cepgen {
     /*if ( fabs( cthe ) > 1. || fabs( sthe ) > 1. ) {
       CG_DEBUG_LOOP( "EPA:get" ) << "theta of electron: "
         << theta << ", "
-        << "reject event for Y: " << y << ", Q2: " << q2 << ".";
+        << "reject event for Y: " << y << ", Q2: " << q2_weighted << ".";
       if ( ++num_errors_[1] > max_errors_[1] )
         throw CG_FATAL( "EPA:get" )
           << "Errors threshold (" << max_errors_[1] << ") reached for "
@@ -248,7 +251,7 @@ namespace cepgen {
 
     //--- 5-vector of photon k - k'
     out.pph = pel_ - out.ppe;
-    out.pph.setMass(sqrt(q2));
+    out.pph.setMass(sqrt(q2_weighted));
 
     //--- determine helicity of the photon
     out.heli = helicity(l_frac);

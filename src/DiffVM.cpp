@@ -26,7 +26,7 @@
 
 #include <cmath>
 
-#include "CepGen/Physics/EPA.h"
+#include "CepGenDiffVM/EPA.h"
 
 using namespace cepgen;
 
