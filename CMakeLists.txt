@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 project(CepGenDiffVM)
 
 set(CEPGEN_PATH ${CEPGEN_PATH} $ENV{CEPGEN_PATH})
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CEPGEN_PATH}/cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CEPGEN_PATH}/cmake ${CEPGEN_PATH}/build/cmake)
 find_package(CepGen REQUIRED)
 
 file(GLOB sources src/*.cpp)
