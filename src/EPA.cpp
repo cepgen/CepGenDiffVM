@@ -39,18 +39,18 @@ namespace cepgen {
     return desc;
   }
 
-  void EPA::init(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range) {
+  void EPA::initialise(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range) {
     //--- define the kinematics ranges
     pel_ = pel;
     ppr_ = ppr;
     q2_range_ = q2_range;
     w_range_ = w_range;
 
-    CG_INFO("EPA:init") << "EPA module initialised.\n\t"
-                        << "mode: " << mode_ << "\n\t"
-                        << "beams momenta:\n\t  " << pel_ << "\n\t  " << ppr_ << "\n\t"
-                        << "W range: " << w_range_ << " GeV, "
-                        << "Q² range: " << q2_range_ << " GeV².";
+    CG_INFO("EPA:initialise") << "EPA module initialised.\n\t"
+                              << "mode: " << mode_ << "\n\t"
+                              << "beams momenta:\n\t  " << pel_ << "\n\t  " << ppr_ << "\n\t"
+                              << "W range: " << w_range_ << " GeV, "
+                              << "Q² range: " << q2_range_ << " GeV².";
 
     //--- calculate CMS s=(P+K)²
     const double sqrt_s = (pel_ + ppr_).mass();
@@ -62,36 +62,34 @@ namespace cepgen {
       eel_ = elpr_ / ppr_.mass();
     else
       eel_ = pel_.energy();
-    CG_DEBUG("EPA:init") << "S = " << s_ << ", EEL = " << eel_ << ".";
-    const double w_min = w_range_.min(), w_max = w_range_.max();
-    const double w_min2 = w_min * w_min;
-    const double q2_min = q2_range_.min(), q2_max = q2_range_.max();
-    w12_ = w_min2 - ppr_.mass2();
+    CG_DEBUG("EPA:initialise") << "S = " << s_ << ", EEL = " << eel_ << ".";
+    w12_ = w_range_.min() * w_range_.min() - ppr_.mass2();
 
     //--- calculate Y - bounds from
     // ALI, A. et al. (1987): Heavy quark physics at HERA.
     // - Proc. HERA workshop, Hamburg 1987 (ed. R.D. PECCEI), 395-494.
-    const double y_sqr = sqrt(pow(s_ - w12_, 2) - 4. * w12_ * pel_.mass2());
-    dy_range_.max() = 0.5 * (s_ + w12_ + y_sqr) / (s_ + pel_.mass2());
+    dy_range_.max() =
+        0.5 * (s_ + w12_ + std::sqrt(std::pow(s_ - w12_, 2) - 4. * w12_ * pel_.mass2())) / (s_ + pel_.mass2());
+    const auto w2_max = w_range_.max() * w_range_.max(), q2_max = q2_range_.max();
     //---  use trick for quadratic equations; see
     // W.H. PRESS et al. (1988): Numerical Recipes in C. Cambridge
     // (Cambridge Univ. Press), p. 156.
     dy_range_.min() = std::max(y_range_.min(), w12_ / (dy_range_.max() * (s_ + pel_.mass2())));
     //--- calculate absolute maximum of y, irrespective of final state
-    dy_range_.max() = std::min(
-        y_range_.max(), std::min(s_ / (s_ + pel_.mass2()), 0.5 * (w_max * w_max - ppr_.mass2() + q2_max) / elpr_));
-    CG_INFO("EPA:init") << "S / (S + DME**2) = " << (s_ / (s_ + pel_.mass2())) << "\n\t"
-                        << "y range: " << y_range_ << "\n\t"
-                        << "(W²(max)-mp²+Q²(max))/(2*elpr) = "
-                        << (0.5 * (w_max * w_max - ppr_.mass2() + q2_max) / elpr_) << "\n\t"
-                        << "dy range: " << dy_range_ << ".";
+    dy_range_.max() =
+        std::min(y_range_.max(), std::min(s_ / (s_ + pel_.mass2()), 0.5 * (w2_max - ppr_.mass2() + q2_max) / elpr_));
+    CG_INFO("EPA:initialise") << "S / (S + DME**2) = " << (s_ / (s_ + pel_.mass2())) << "\n\t"
+                              << "y range: " << y_range_ << "\n\t"
+                              << "(W²(max)-mp²+Q²(max))/(2*elpr) = " << (0.5 * (w2_max - ppr_.mass2() + q2_max) / elpr_)
+                              << "\n\t"
+                              << "dy range: " << dy_range_ << ".";
     const double dy_min = dy_range_.min(), dy_max = dy_range_.max();
 
     //--- set max. photon weight for efficient rejection plane
-    const double qg2_min = std::max(q2_min, pel_.mass2() * pow(dy_min, 2) / (1. - dy_min));
-    const double qg2_max = std::min(q2_max, dy_max * s_);
+    const double qg2_min = std::max(q2_range_.min(), pel_.mass2() * pow(dy_min, 2) / (1. - dy_min));
+    const double qg2_max = std::min(q2_range_.max(), dy_max * s_);
     Limits qg2_range(qg2_min, qg2_max);
-    CG_DEBUG("EPA:init") << "QG2 range: " << qg2_range << ".";
+    CG_DEBUG("EPA:initialise") << "QG2 range: " << qg2_range << ".";
 
     if (mode_ == Mode::wwa)  //--- WWA - approximation
       epa_max_ = ALPHARED * (4. * (1. - dy_min) + dy_min * dy_min);
@@ -104,7 +102,7 @@ namespace cepgen {
           (pow(dy_min * elpr_, 2) + qg2_min * ppr_.mass2()) / (elpr_ * elpr_ + pel_.mass2() * ppr_.mass2());
 
       if (emsqr < 0.)
-        CG_FATAL("EPA:init") << "problem with sqrt(emsqr): " << emsqr << " at EPAMAX determination.";
+        CG_FATAL("EPA:initialise") << "problem with sqrt(emsqr): " << emsqr << " at EPAMAX determination.";
 
       epa_max_ = ALPHARED * dy_min * sqrt(emsqr) / (emqe2 + eqe);
       if (mode_ == Mode::transverse)
@@ -114,7 +112,7 @@ namespace cepgen {
     }
     epa_max_ *= log(dy_max / dy_min) * log(qg2_max / qg2_min);
 
-    CG_DEBUG("EPA:init") << "maximal EPA: " << epa_max_;
+    CG_DEBUG("EPA:initialise") << "maximal EPA: " << epa_max_;
   }
 
   EPA::Result EPA::operator()(double y, double q2) const {

@@ -24,18 +24,19 @@ process = cepgen.Module('diffvm',
         slopeParameters = cepgen.Parameters(
             b0 = 5.5,
         ),
+        wgp = (0., 100.),
     ),
     inKinematics = cepgen.Parameters(
         pdgIds = (PDG.electron, PDG.proton),
         pz = (27.55, 820.),
+        q2 = [(4., 100.), (4., 100.)],
     ),
     outKinematics = cepgen.Parameters(
-        mass = (5.,),
+        #mass = (0.1,),
         #invmass = ( 0., 6. ),
-        mx = (1.07, 1000.),
+        mx = (0.236, 1000.),  # DEMINP
     ),
 )
-print(process.processParameters)
 
 generator = _gen.clone(
     numEvents = 25000,

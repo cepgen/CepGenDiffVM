@@ -8,7 +8,7 @@ find_package(CepGen REQUIRED)
 file(GLOB sources src/*.cpp)
 
 add_library(CepGenDiffVM SHARED ${sources})
-target_link_libraries(CepGenDiffVM PRIVATE CepGen::CepGen)
+target_link_libraries(CepGenDiffVM PUBLIC CepGen::CepGen)
 target_include_directories(CepGenDiffVM PRIVATE ${PROJECT_SOURCE_DIR})
 
 # copy the input cards

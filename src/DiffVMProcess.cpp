@@ -42,7 +42,8 @@ public:
         slope_parameters_(steer<ParametersList>("slopeParameters")),
         pomeron_parameters_(steer<ParametersList>("pomeronParameters")),
         vm_parameters_(steer<ParametersList>("vmParameters")),
-        epa_calculator_(steer<ParametersList>("epaParameters")) {}
+        epa_calculator_(steer<ParametersList>("epaParameters")),
+        w_gammap_range_(steer<Limits>("wgp")) {}
 
   proc::ProcessPtr clone() const override { return proc::ProcessPtr(new DiffVMProcess(*this)); }
 
@@ -57,6 +58,7 @@ public:
     desc.add<ParametersDescription>("pomeronParameters", PomeronParameters::description());
     desc.add<ParametersDescription>("vmParameters", VectorMesonParameters::description());
     desc.add<ParametersDescription>("epaParameters", EPA::description());
+    desc.add<Limits>("wgp", Limits{}).setDescription("gamma-p system CM energy range, in GeV");
     return desc;
   }
 
@@ -72,16 +74,14 @@ public:
   void prepareKinematics() override {
     mY2() = pB().mass2();
 
-    //const auto& w_limits = kinematics().cuts().central.mass_single;//FIXME
-    const auto& w_limits = Limits{0., 50.};
-
     //--- variables mapping
     defineVariable(m_phi_var_, Mapping::linear, {0., 2. * M_PI}, "azumuthal_angle");  //TODO factor 2*pi? to be checked
     defineVariable(m_t_spectrum_, Mapping::linear, {0., 1.}, "t_spectrum_variable");
     defineVariable(m_photon_rel_fraction_, Mapping::linear, {0., 1.}, "photon_fractional_momentum");
     defineVariable(m_diffractive_mass_, Mapping::linear, {0., 1.}, "diffractive_proton_mass");
-    if (igammd_ >= PhotonMode::WWA) {  // use the equivalent photon approximation for the photon part
-      epa_calculator_.init(pA(), pB(), kinematics().cuts().initial.q2.at(0), w_limits);
+    if (igammd_ == PhotonMode::WWA || igammd_ == PhotonMode::ABTSmith ||
+        igammd_ == PhotonMode::AandS) {  // use the equivalent photon approximation for the photon part
+      epa_calculator_.initialise(pA(), pB(), kinematics().cuts().initial.q2.at(0), w_gammap_range_);
       defineVariable(m_wwa_var_, Mapping::linear, {0., 1.}, "epa_variable");
     }
 
@@ -90,10 +90,10 @@ public:
           0.5, slope_parameters_.b0 + 4. * pomeron_parameters_.alpha1 * std::log(mass_min / slope_parameters_.wb0));
     };
     if (ifragp_ == BeamMode::Elastic) {
-      if (!w_limits.hasMin())
+      if (!w_gammap_range_.hasMin())
         throw CG_FATAL("DiffVM") << "You must specify a lower limit to W(gamma,p)!\n\t"
-                                 << "Current limits: " << w_limits << ".";
-      bmin_ = compute_bmin(w_limits.min());
+                                 << "Current limits: " << w_gammap_range_ << ".";
+      bmin_ = compute_bmin(w_gammap_range_.min());
     } else {
       if (ifragv_ == BeamMode::Elastic)
         bmin_ = compute_bmin(slope_parameters_.amxb0);
@@ -101,11 +101,11 @@ public:
         bmin_ = compute_bmin(4. * std::pow(slope_parameters_.amxb0, 2) * inverseSqrtS());
     }
     if (ifragv_ == BeamMode::Elastic)
-      defineVariable(m_vm_var_, Mapping::linear, {0., 1.}, "VMvar");
+      defineVariable(m_vm_var_, Mapping::linear, {0., 1.}, "vector_meson_variable");
     CG_DEBUG("DiffVMProcess:prepareKinematics") << "Minimum b slope: " << bmin_ << ".";
 
-    min_pho_energy_ = 0.25 * std::pow(w_limits.min(), 2) / pB().p();
-    max_s_ = std::pow(w_limits.max(), 2);
+    min_pho_energy_ = 0.25 * std::pow(w_gammap_range_.min(), 2) / pB().p();
+    max_s_ = std::pow(w_gammap_range_.max(), 2);
 
     if (vm_parameters_.lambda2 <= 0.)
       vm_parameters_.lambda2 = event().oneWithRole(Particle::Role::CentralSystem).momentum().mass2();
@@ -167,9 +167,9 @@ private:
     }
     static ParametersDescription description() {
       auto desc = ParametersDescription();
-      desc.add<double>("b0", 4.);
-      desc.add<double>("wb0", 95.);
-      desc.add<double>("amxb0", 14.);
+      desc.add<double>("b0", 4.).setDescription("slope parameter of 't' distribution, in GeV^-2");
+      desc.add<double>("wb0", 95.).setDescription("gamma-p system CM energy at which 'b0' is measured");
+      desc.add<double>("amxb0", 14.).setDescription("mass of diffractive hadronic system at which 'b0' is measured");
       desc.add<double>("anexp", 0.);
       return desc;
     }
@@ -189,8 +189,9 @@ private:
     }
     static ParametersDescription description() {
       auto desc = ParametersDescription();
-      desc.add<double>("epsilonW", 0.225);
-      desc.add<double>("epsilonM", 0.0808);
+      desc.add<double>("epsilonW", 0.225)
+          .setDescription("alpha_P(0)-1 parameter for W dependence of gamma-p cross section");
+      desc.add<double>("epsilonM", 0.0808).setDescription("alpha_P(0)-1 parameter for mX spectrum");
       desc.add<double>("alpha1", 0.);
       desc.add<double>("alpha1m", 0.);
       return desc;
@@ -220,7 +221,9 @@ private:
       desc.add<double>("lambda", 0.).setDescription("Q^2-dependence parameter of cross section in GeV");
       desc.add<double>("eprop", 2.5).setDescription("Propagator term exponent");
       desc.add<double>("xi", 1.).setDescription("Q^2-dependence parameter of sigma_L/sigma_T");
-      desc.add<double>("chi", 1.).setDescription("Purely phenomenological parameter with no theoretical justification");
+      desc.add<double>("chi", 1.).setDescription(
+          "Purely phenomenological parameter with no theoretical justification for Q^2-dependence parameter of "
+          "sigma_L/sigma_T");
       return desc;
     }
     double computeMX(double q2_min) const {
@@ -238,6 +241,8 @@ private:
     double chi{0.};  ///< Purely phenomenological parameter with no theoretical justification (see \a xi)
   } vm_parameters_;
   EPA epa_calculator_;
+
+  const Limits w_gammap_range_;
 
   double bmin_{0.};
   double dmxv_{0.};
@@ -298,9 +303,8 @@ double DiffVMProcess::computeWeight() {
   if (!kinematics().cuts().initial.q2.at(0).contains(q2_value))
     return 0.;
 
-  //--- determine gamma*-p energy
-  p_cm_ = q1() + pB();
-  const auto mb2 = p_cm_.energy2(), mb = p_cm_.energy();
+  p_cm_ = q1() + pB();  // gamma*-p energy
+  const auto mb = p_cm_.energy(), mb2 = mb * mb;
 
   double weight = 1.;
   weight /= std::pow(1. + q2_value / vm_parameters_.lambda2, vm_parameters_.eprop);  // weight of the virtual VM
@@ -309,8 +313,8 @@ double DiffVMProcess::computeWeight() {
   weight *= std::pow(mb2 / max_s_, 2. * pomeron_parameters_.epsilw) / prop_mx_;
 
   const auto generate_outgoing_particle_mass = [this](double x) {  // GENMXT in DiffVM
-    const auto& mass_range = kinematics().cuts().remnants.mx;
-    if (std::fabs(pomeron_parameters_.epsilm) < 1.e-3)  // basic spectrum: 1/M^2
+    const auto& mass_range = kinematics().cuts().remnants.mx;      // DEMINP in DiffVM
+    if (std::fabs(pomeron_parameters_.epsilm) < 1.e-3)             // basic spectrum: 1/M^2
       return mass_range.trim(mass_range.min() * std::pow(mass_range.max() / mass_range.min(), x));
     // basic spectrum: 1/M^2(1+epsilon)
     const double m2min = std::pow(mass_range.min(), -2. * pomeron_parameters_.epsilm);

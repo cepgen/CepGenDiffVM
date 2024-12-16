@@ -59,8 +59,8 @@ namespace cepgen {
     };
     friend std::ostream& operator<<(std::ostream& os, const Mode& mode);
 
-    /// Initialize histograms, constants, kinematical bounds
-    void init(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range);
+    /// Initialise histograms, constants, kinematical bounds
+    void initialise(const Momentum& pel, const Momentum& ppr, const Limits& q2_range, const Limits& w_range);
 
     /// Generate one event with unweighted photon and electron
     /** \note
